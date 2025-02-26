@@ -23,11 +23,24 @@ exports.handler = async function(event, context) {
     const requestBody = JSON.parse(event.body);
     const { prompt, assistantType } = requestBody;
     
+    console.log(`Request received for ${assistantType} assistant`);
+    
     if (!prompt || !assistantType) {
+      console.log('Missing required parameters');
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: 'Missing required parameters' })
+      };
+    }
+    
+    // Check for API key
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.log('ANTHROPIC_API_KEY is not set in environment variables');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'API key configuration error' })
       };
     }
     
@@ -111,42 +124,62 @@ exports.handler = async function(event, context) {
                 The user will provide you with content to optimize and may specify target audiences or goals. Your recommendations should help the content achieve its purpose more effectively.`
     };
     
-    // Make request to Anthropic API
-    const response = await axios.post(
-      'https://api.anthropic.com/v1/messages',
-      {
-        model: "claude-3-sonnet-20240229", // Or your preferred Claude model
-        max_tokens: 4000,
-        messages: [
-          { 
-            role: "system", 
-            content: systemPrompts[assistantType] || systemPrompts.proofreader 
-          },
-          { 
-            role: "user", 
-            content: prompt 
-          }
-        ]
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        }
-      }
-    );
+    // Select the appropriate system prompt
+    const systemPrompt = systemPrompts[assistantType] || systemPrompts.proofreader;
+    console.log(`Using ${assistantType} system prompt`);
     
-    // Process and return the response
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        message: response.data.content[0].text
-      })
-    };
+    try {
+      console.log('Sending request to Anthropic API');
+      // Make request to Anthropic API
+      const response = await axios.post(
+        'https://api.anthropic.com/v1/messages',
+        {
+          model: "claude-3-sonnet-20240229", // Or your preferred Claude model
+          max_tokens: 4000,
+          messages: [
+            { 
+              role: "system", 
+              content: systemPrompt 
+            },
+            { 
+              role: "user", 
+              content: prompt 
+            }
+          ]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          }
+        }
+      );
+      
+      console.log('Response received from Anthropic API');
+      
+      // Process and return the response
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: response.data.content[0].text
+        })
+      };
+    } catch (apiError) {
+      console.error('Error from Anthropic API:', apiError.response ? apiError.response.data : apiError.message);
+      
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Error from Anthropic API',
+          details: apiError.response ? apiError.response.data : apiError.message
+        })
+      };
+    }
   } catch (error) {
-    console.error('Error calling Anthropic API:', error);
+    console.error('General error in function:', error.message);
     
     return {
       statusCode: 500,
