@@ -130,17 +130,14 @@ exports.handler = async function(event, context) {
     
     try {
       console.log('Sending request to Anthropic API');
-      // Make request to Anthropic API
+      // Make request to Anthropic API - FIXED FORMAT
       const response = await axios.post(
         'https://api.anthropic.com/v1/messages',
         {
-          model: "claude-3-sonnet-20240229", // Or your preferred Claude model
+          model: "claude-3-sonnet-20240229",
           max_tokens: 4000,
+          system: systemPrompt,  // System prompt as a top-level parameter
           messages: [
-            { 
-              role: "system", 
-              content: systemPrompt 
-            },
             { 
               role: "user", 
               content: prompt 
