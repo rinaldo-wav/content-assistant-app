@@ -1,0 +1,9 @@
+{
+  "name": "claude-assistant-function",
+  "version": "1.0.0",
+  "description": "Serverless function for Claude AI content assistant",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
