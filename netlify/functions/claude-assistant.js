@@ -21,20 +21,20 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType } = requestBody;
+    const { prompt, assistantType, recordId } = requestBody;
     
-    console.log(`Request received for ${assistantType} assistant`);
+    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
     
-    if (!prompt || !assistantType) {
+    if (!prompt || !assistantType || !recordId) {
       console.log('Missing required parameters');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required parameters' })
+        body: JSON.stringify({ error: 'Missing required parameters (prompt, assistantType, or recordId)' })
       };
     }
     
-    // Check for API key
+    // Check for API keys
     if (!process.env.ANTHROPIC_API_KEY) {
       console.log('ANTHROPIC_API_KEY is not set in environment variables');
       return {
@@ -44,99 +44,36 @@ exports.handler = async function(event, context) {
       };
     }
     
-    // Different system prompts for different assistant types
-    const systemPrompts = {
-      proofreader: `You are a professional proofreader and editor with expertise in improving written content.
-                    Your role is to help users refine their writing by identifying and correcting issues related to:
-                    
-                    - Grammar and syntax
-                    - Spelling and punctuation
-                    - Clarity and conciseness
-                    - Word choice and vocabulary
-                    - Flow and organization
-                    
-                    When responding to users:
-                    1. Always maintain the original voice and tone of the content
-                    2. Provide specific, actionable feedback
-                    3. Explain your reasoning for significant changes
-                    4. When asked to modify content, provide a complete, corrected version of the text between triple backticks (\`\`\`)
-                    5. Focus on concrete improvements rather than general advice
-                    
-                    The user will provide you with content to review and specific requests for assistance. They may ask you to check the entire piece or focus on particular aspects. Be thorough but prioritize the most impactful changes.`,
-      
-      creative: `You are a creative writing assistant with expertise in crafting engaging, original content.
-                Your role is to help users enhance their writing style, develop creative ideas, and make their content more compelling.
-                
-                You can assist with:
-                - Storytelling techniques and narrative structure
-                - Character development and dialogue
-                - Creative descriptions and sensory details
-                - Voice, tone, and pacing
-                - Metaphors, analogies, and other literary devices
-                
-                When responding to users:
-                1. Offer specific, creative suggestions for improvement
-                2. Provide examples to illustrate your points
-                3. When asked to modify content, provide a complete, enhanced version of the text between triple backticks (\`\`\`)
-                4. Maintain the original intent and core message while adding creative flair
-                5. Balance creativity with clarity and readability
-                
-                The user will provide you with content and specific requests for creative assistance. Be imaginative but practical in your suggestions.`,
-      
-      seo: `You are an SEO specialist with deep knowledge of search engine optimization.
-            Your role is to help users optimize their content for search engines while maintaining readability and value for human readers.
-            
-            You can assist with:
-            - Keyword research and integration
-            - Title tags and meta descriptions
-            - Header structure and content organization
-            - Internal and external linking strategies
-            - Content length and depth optimization
-            - Readability improvements for SEO
-            
-            When responding to users:
-            1. Focus on current SEO best practices 
-            2. Provide specific, actionable recommendations
-            3. When asked to modify content, provide a complete, SEO-optimized version of the text between triple backticks (\`\`\`)
-            4. Balance keyword optimization with natural, engaging writing
-            5. Explain the reasoning behind significant SEO recommendations
-            
-            The user will provide you with content to optimize and may include specific keywords or SEO goals. Your suggestions should improve search visibility while preserving the content's value and message.`,
-      
-      optimizer: `You are a content optimization expert who helps make content more effective and engaging for target audiences.
-                Your role is to improve readability, structure, flow, and overall impact of written content.
-                
-                You can assist with:
-                - Audience targeting and tone adjustment
-                - Structural improvements for scannability
-                - Call-to-action effectiveness
-                - Persuasive writing techniques
-                - Content formatting and visual hierarchy
-                - Engagement strategies and hooks
-                
-                When responding to users:
-                1. Focus on making content more compelling and effective
-                2. Provide specific, actionable recommendations
-                3. When asked to modify content, provide a complete, optimized version of the text between triple backticks (\`\`\`)
-                4. Maintain the original message while improving its delivery
-                5. Consider both form and function in your suggestions
-                
-                The user will provide you with content to optimize and may specify target audiences or goals. Your recommendations should help the content achieve its purpose more effectively.`
-    };
-    
-    // Select the appropriate system prompt
-    const systemPrompt = systemPrompts[assistantType] || systemPrompts.proofreader;
-    console.log(`Using ${assistantType} system prompt`);
+    if (!process.env.AIRTABLE_API_KEY) {
+      console.log('AIRTABLE_API_KEY is not set in environment variables');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Airtable API key configuration error' })
+      };
+    }
     
     try {
+      // Fetch assistant configuration from Airtable
+      console.log(`Fetching assistant config for ${assistantType}`);
+      const assistantConfig = await getAssistantConfig(assistantType, recordId);
+      
+      // Extract configuration values
+      const systemPrompt = assistantConfig.SystemPrompt;
+      const temperature = assistantConfig.Temperature || 0.7;
+      const maxTokens = assistantConfig.MaxTokens || 4000;
+      
+      console.log(`Using assistant config: ${assistantConfig.Name}`);
+      
       console.log('Sending request to Anthropic API');
-      // Make request to Anthropic API - FIXED FORMAT AND MODEL NAME
+      // Make request to Anthropic API with the fetched configuration
       const response = await axios.post(
         'https://api.anthropic.com/v1/messages',
         {
-          model: "claude-3-7-sonnet-20250219",  // Updated to match your available model
-          max_tokens: 4000,
-          system: systemPrompt,
+          model: "claude-3-7-sonnet-20250219",  // Could be made configurable in Airtable
+          max_tokens: maxTokens,
+          temperature: temperature,
+          system: systemPrompt,  // System prompt from Airtable
           messages: [
             { 
               role: "user", 
@@ -164,13 +101,13 @@ exports.handler = async function(event, context) {
         })
       };
     } catch (apiError) {
-      console.error('Error from Anthropic API:', apiError.response ? apiError.response.data : apiError.message);
+      console.error('Error from API:', apiError.response ? apiError.response.data : apiError.message);
       
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Error from Anthropic API',
+          error: 'Error from API',
           details: apiError.response ? apiError.response.data : apiError.message
         })
       };
@@ -188,3 +125,64 @@ exports.handler = async function(event, context) {
     };
   }
 };
+
+// Function to fetch assistant configuration from Airtable
+async function getAssistantConfig(assistantKey, recordId) {
+  try {
+    // First get the content record to find linked assistants
+    console.log(`Fetching content record: ${recordId}`);
+    const contentResponse = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    // Get the linked assistant IDs
+    const linkedAssistantIds = contentResponse.data.fields.AI_Assistants || [];
+    
+    console.log(`Linked assistant IDs: ${linkedAssistantIds.join(', ')}`);
+    
+    if (linkedAssistantIds.length === 0) {
+      throw new Error('No assistants linked to this content');
+    }
+    
+    // Construct a filter formula to find the specific assistant
+    // This gets an active assistant with matching key that's linked to the content
+    const filterFormula = `AND(Key="${assistantKey}", Active=TRUE)`;
+    
+    console.log(`Fetching assistants with filter: ${filterFormula}`);
+    
+    // Get the specific assistant by key
+    const assistantsResponse = await axios.get(
+      'https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants',
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        },
+        params: {
+          filterByFormula: filterFormula
+        }
+      }
+    );
+    
+    console.log(`Found ${assistantsResponse.data.records.length} matching assistants`);
+    
+    // Check if the assistant exists in the linked assistants
+    const matchingAssistants = assistantsResponse.data.records.filter(assistant => 
+      linkedAssistantIds.includes(assistant.id)
+    );
+    
+    if (matchingAssistants.length === 0) {
+      throw new Error(`Assistant ${assistantKey} not found or not linked to this content`);
+    }
+    
+    // Return the first matching assistant's fields
+    return matchingAssistants[0].fields;
+  } catch (error) {
+    console.error('Error fetching assistant config:', error);
+    throw error;
+  }
+}
