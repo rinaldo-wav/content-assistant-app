@@ -141,7 +141,7 @@ async function getAssistantConfig(assistantKey, recordId) {
     );
     
     // Get the linked assistant IDs
-    const linkedAssistantIds = contentResponse.data.fields.AI_Assistants || [];
+    const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || [];
     
     console.log(`Linked assistant IDs: ${linkedAssistantIds.join(', ')}`);
     
