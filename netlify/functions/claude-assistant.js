@@ -59,15 +59,20 @@ exports.handler = async function(event, context) {
       const assistantConfig = await getAssistantConfig(assistantType, recordId);
       
       // Extract configuration values with defaults
-      const systemPrompt = assistantConfig.SystemPrompt || "You are a helpful assistant.";
-      const temperature = parseFloat(assistantConfig.Temperature) || 0.7;
-      const maxTokens = parseInt(assistantConfig.MaxTokens) || 4000;
+      const systemPrompt = assistantConfig.SystemPrompt || "You are a helpful AI assistant.";
+      const temperature = parseFloat(assistantConfig.Temperature || 0.7);
+      const maxTokens = parseInt(assistantConfig.MaxTokens || 4000, 10);
       
       console.log(`Using assistant config: ${assistantConfig.Name}`);
-      console.log(`Temperature: ${temperature}, Max Tokens: ${maxTokens}`);
-      console.log(`System prompt length: ${systemPrompt.length} characters`);
+      console.log(`Config values: temp=${temperature}, maxTokens=${maxTokens}`);
       
-      console.log('Sending request to Anthropic API');
+      console.log('Sending request to Anthropic API with config:', {
+        model: "claude-3-7-sonnet-20250219",
+        temperature: temperature,
+        systemPromptLength: systemPrompt ? systemPrompt.length : 0,
+        promptLength: prompt ? prompt.length : 0
+      });
+      
       // Make request to Anthropic API with the fetched configuration
       const response = await axios.post(
         'https://api.anthropic.com/v1/messages',
@@ -103,26 +108,17 @@ exports.handler = async function(event, context) {
         })
       };
     } catch (apiError) {
+      // Detailed error logging
       console.error('Error from API:', apiError.message);
       
-      // Enhanced error logging
       if (apiError.response) {
         console.error('Response status:', apiError.response.status);
         console.error('Response data:', JSON.stringify(apiError.response.data));
-        if (apiError.response.config && apiError.response.config.data) {
-          try {
-            const requestData = JSON.parse(apiError.response.config.data);
-            console.error('Request data (partial):', {
-              model: requestData.model,
-              max_tokens: requestData.max_tokens,
-              temperature: requestData.temperature,
-              system_length: requestData.system ? requestData.system.length : 'undefined',
-              messages_count: requestData.messages ? requestData.messages.length : 'undefined'
-            });
-          } catch (e) {
-            console.error('Error parsing request data:', e.message);
-          }
-        }
+        console.error('Request config:', JSON.stringify({
+          url: apiError.response.config.url,
+          method: apiError.response.config.method,
+          headers: apiError.response.config.headers
+        }));
       }
       
       return {
@@ -162,7 +158,7 @@ async function getAssistantConfig(assistantKey, recordId) {
       }
     );
     
-    // Get the linked assistant IDs - USING CORRECT FIELD NAME WITH SPACES
+    // Get the linked assistant IDs - CORRECTED FIELD NAME
     const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || [];
     
     console.log(`Linked assistant IDs: ${linkedAssistantIds.join(', ')}`);
@@ -201,11 +197,8 @@ async function getAssistantConfig(assistantKey, recordId) {
       throw new Error(`Assistant ${assistantKey} not found or not linked to this content`);
     }
     
-    const selectedAssistant = matchingAssistants[0];
-    console.log(`Selected assistant: ${selectedAssistant.fields.Name} (${selectedAssistant.fields.Key})`);
-    
     // Return the first matching assistant's fields
-    return selectedAssistant.fields;
+    return matchingAssistants[0].fields;
   } catch (error) {
     console.error('Error fetching assistant config:', error);
     throw error;
