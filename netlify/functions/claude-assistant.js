@@ -63,12 +63,106 @@ function analyzeContentStructure(html) {
   return `Document uses these HTML tags: ${sortedTags}`;
 }
 
+// Helper function to get content record from Airtable
+async function getContentRecord(recordId) {
+  try {
+    const response = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error getting content record:', error.message);
+    throw error;
+  }
+}
+
+// Helper function to fetch assistant configuration from Airtable
+async function getAssistantConfig(assistantKey, recordId) {
+  try {
+    // First get the content record to find linked assistants
+    console.log(`Fetching content record: ${recordId}`);
+    const contentResponse = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    // Check if we got a valid response
+    if (!contentResponse.data || !contentResponse.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    // Get the linked assistant IDs
+    const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || [];
+    
+    console.log(`Linked assistant IDs: ${JSON.stringify(linkedAssistantIds)}`);
+    
+    if (!linkedAssistantIds || linkedAssistantIds.length === 0) {
+      throw new Error('No assistants linked to this content');
+    }
+    
+    // Construct a filter formula to find the specific assistant
+    const filterFormula = encodeURIComponent(
+      `AND(Key="${assistantKey}", Active=TRUE(), OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')}))`
+    );
+    
+    console.log(`Fetching assistants with filter: ${filterFormula}`);
+    
+    // Get the specific assistant by key
+    const assistantsResponse = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${filterFormula}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!assistantsResponse.data || !assistantsResponse.data.records) {
+      throw new Error('Failed to retrieve assistants from Airtable');
+    }
+    
+    console.log(`Found ${assistantsResponse.data.records.length} matching assistants`);
+    
+    // Check if the assistant exists in the linked assistants
+    const matchingAssistants = assistantsResponse.data.records.filter(assistant => 
+      linkedAssistantIds.includes(assistant.id)
+    );
+    
+    console.log(`Found ${matchingAssistants.length} assistants linked to content`);
+    
+    if (matchingAssistants.length === 0) {
+      throw new Error(`Assistant ${assistantKey} not found or not linked to this content`);
+    }
+    
+    // Return the first matching assistant's fields
+    return matchingAssistants[0].fields;
+  } catch (error) {
+    console.error('Error fetching assistant config:', error.message);
+    throw error;
+  }
+}
+
 exports.handler = async function(event, context) {
-  // Enable CORS
+  // Enable CORS with more comprehensive headers
   const headers = {
-    'Access-Control-Allow-Origin': '*',  // In production, change to your domain
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
   };
   
   // Handle preflight OPTIONS request
@@ -76,42 +170,63 @@ exports.handler = async function(event, context) {
     return {
       statusCode: 200,
       headers,
-      body: ''
+      body: JSON.stringify({ message: 'Successful preflight call' })
     };
   }
   
   try {
-    // Parse request body
-    const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText, selectedContext } = requestBody;
-    
-    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
-    
-    if (!prompt || !assistantType || !recordId) {
-      console.log('Missing required parameters');
+    // Robust request body parsing
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required parameters (prompt, assistantType, or recordId)' })
+        body: JSON.stringify({ 
+          error: 'Invalid request body',
+          details: parseError.message 
+        })
+      };
+    }
+
+    const { prompt, assistantType, recordId, selectedText } = requestBody;
+    
+    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
+    
+    // Validate required parameters
+    const missingParams = [];
+    if (!prompt) missingParams.push('prompt');
+    if (!assistantType) missingParams.push('assistantType');
+    if (!recordId) missingParams.push('recordId');
+    
+    if (missingParams.length > 0) {
+      console.log('Missing required parameters:', missingParams);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Missing required parameters',
+          details: missingParams 
+        })
       };
     }
     
     // Check for API keys
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.log('ANTHROPIC_API_KEY is not set in environment variables');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'API key configuration error' })
-      };
-    }
+    const missingApiKeys = [];
+    if (!process.env.ANTHROPIC_API_KEY) missingApiKeys.push('ANTHROPIC_API_KEY');
+    if (!process.env.AIRTABLE_API_KEY) missingApiKeys.push('AIRTABLE_API_KEY');
     
-    if (!process.env.AIRTABLE_API_KEY) {
-      console.log('AIRTABLE_API_KEY is not set in environment variables');
+    if (missingApiKeys.length > 0) {
+      console.log('Missing API keys:', missingApiKeys);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Airtable API key configuration error' })
+        body: JSON.stringify({ 
+          error: 'API key configuration error',
+          details: missingApiKeys 
+        })
       };
     }
     
@@ -221,7 +336,7 @@ IMPORTANT:
 6. Remember: The most important thing is maintaining the document's formatting while improving the content`;
       }
       
-      // Validate the model - USE THE CURRENT OPUS MODEL
+      // Validate the model
       const model = "claude-3-opus-20240229";
       
       console.log('Sending request to Anthropic API with config:', {
@@ -312,6 +427,3 @@ IMPORTANT:
     };
   }
 };
-
-// Rest of the file remains the same as in the original paste.txt
-// (getContentRecord and getAssistantConfig functions)
