@@ -40,6 +40,29 @@ function extractDocumentStructure(html) {
   return headings.join('\n');
 }
 
+// Helper function to analyze content structure and get tag information
+function analyzeContentStructure(html) {
+  if (!html) return '';
+  
+  // Count most common tags
+  const tagCounts = {};
+  const tagMatches = html.match(/<([a-z][a-z0-9]*)\b[^>]*>/gi) || [];
+  
+  tagMatches.forEach(tag => {
+    const tagName = tag.match(/<([a-z][a-z0-9]*)\b/i)[1].toLowerCase();
+    tagCounts[tagName] = (tagCounts[tagName] || 0) + 1;
+  });
+  
+  // Get the most common tags
+  const sortedTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([tag, count]) => `${tag} (${count})`)
+    .join(', ');
+  
+  return `Document uses these HTML tags: ${sortedTags}`;
+}
+
 exports.handler = async function(event, context) {
   // Enable CORS
   const headers = {
@@ -135,6 +158,9 @@ exports.handler = async function(event, context) {
       // Extract document structure for context
       const documentStructure = extractDocumentStructure(currentContent);
       
+      // Analyze document structure for formatting information
+      const contentStructureInfo = analyzeContentStructure(currentContent);
+      
       // Prepare user prompt based on whether text is selected or not
       let userPrompt;
       
@@ -147,6 +173,8 @@ exports.handler = async function(event, context) {
         
         userPrompt = `I'm working on a document with the following structure:
 ${documentStructure}
+
+${contentStructureInfo}
 
 The user has selected this specific portion of text:
 """
@@ -162,10 +190,13 @@ User's request: ${prompt}
 
 When suggesting changes:
 1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
-2. Provide specific replacements that preserve the original intent
-3. Clearly indicate which parts should be replaced and with what
-4. If multiple options are suggested, number them clearly
-5. NEVER discuss HTML tags or formatting - focus only on the content`;
+2. Provide specific replacements that preserve the original intent AND FORMATTING
+3. When providing a suggested replacement, include it within triple backticks (```) 
+4. If the original text had formatting like headings, paragraphs, or lists, maintain that formatting in your suggestion
+5. For any replacement text, structure it with appropriate HTML tags like <p>, <h1>, <h2>, etc. consistent with the document's existing format
+6. If multiple options are suggested, number them clearly
+7. NEVER discuss HTML tags or formatting in your explanations - focus only on the content
+8. Remember: The most important thing is maintaining the document's formatting while improving the content`;
       } else {
         // No specific text selection, working with the entire document
         userPrompt = `Here's the current content I'm working with:
@@ -177,12 +208,17 @@ ${strippedContent}
 Document structure:
 ${documentStructure}
 
+${contentStructureInfo}
+
 User's request: ${prompt}
 
 IMPORTANT:
-1. Do NOT discuss HTML tags or formatting - focus only on the content
-2. If suggesting specific changes, clearly quote the original text and provide the replacement
-3. If multiple options are suggested, number them clearly`;
+1. When providing a suggested replacement, include it within triple backticks (```) 
+2. Maintain the document's existing HTML structure using appropriate tags like <p>, <h1>, <h2>, etc.
+3. Do NOT discuss HTML tags or formatting in your explanations - focus only on the content
+4. If suggesting specific changes, clearly quote the original text and provide the replacement
+5. If multiple options are suggested, number them clearly
+6. Remember: The most important thing is maintaining the document's formatting while improving the content`;
       }
       
       // Validate the model
