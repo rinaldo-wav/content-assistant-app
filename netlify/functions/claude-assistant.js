@@ -1,6 +1,45 @@
 // This file should be saved to netlify/functions/claude-assistant.js
 const axios = require('axios');
 
+// Helper function to strip HTML tags from content
+function stripHtml(html) {
+  if (!html) return '';
+  
+  // Replace common block elements with newlines to preserve structure
+  let processedHtml = html
+    .replace(/<\/p>|<\/div>|<\/h[1-6]>|<\/li>|<br\s*\/?>/gi, '\n')
+    .replace(/<li>/gi, '- '); // Convert list items to bullet points
+  
+  // Remove all remaining HTML tags
+  processedHtml = processedHtml.replace(/<[^>]*>/g, ' ');
+  
+  // Clean up whitespace
+  processedHtml = processedHtml
+    .replace(/\n\s+/g, '\n') // Remove leading whitespace after newlines
+    .replace(/\s+/g, ' ')    // Replace multiple spaces with single space
+    .replace(/\n+/g, '\n\n') // Replace multiple newlines with double newlines
+    .trim();
+  
+  return processedHtml;
+}
+
+// Helper function to extract basic document structure
+function extractDocumentStructure(html) {
+  if (!html) return '';
+  
+  // Extract headings and paragraph beginnings
+  const headingMatch = html.match(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi) || [];
+  
+  // Map headings to a simple structure
+  const headings = headingMatch.map(h => {
+    const level = h.match(/<h([1-6])/i)[1];
+    const text = h.replace(/<[^>]*>/g, '').trim();
+    return `${'#'.repeat(level)} ${text}`;
+  });
+  
+  return headings.join('\n');
+}
+
 exports.handler = async function(event, context) {
   // Enable CORS
   const headers = {
@@ -21,7 +60,7 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId } = requestBody;
+    const { prompt, assistantType, recordId, selectedText, selectedContext } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
     
@@ -86,6 +125,66 @@ exports.handler = async function(event, context) {
       console.log(`Using assistant config: ${assistantConfig.Name}`);
       console.log(`Config values: temp=${temperature}, maxTokens=${maxTokens}`);
       
+      // Get the current content
+      const contentRecord = await getContentRecord(recordId);
+      const currentContent = contentRecord?.fields?.Content || '';
+      
+      // Strip HTML from content to focus on text
+      const strippedContent = stripHtml(currentContent);
+      
+      // Extract document structure for context
+      const documentStructure = extractDocumentStructure(currentContent);
+      
+      // Prepare user prompt based on whether text is selected or not
+      let userPrompt;
+      
+      if (selectedText) {
+        // User has selected specific text
+        console.log('Processing request with selected text');
+        
+        // Strip HTML from the selected text too
+        const cleanSelectedText = stripHtml(selectedText);
+        
+        userPrompt = `I'm working on a document with the following structure:
+${documentStructure}
+
+The user has selected this specific portion of text:
+"""
+${cleanSelectedText}
+"""
+
+The selected text is part of this larger document:
+"""
+${strippedContent}
+"""
+
+User's request: ${prompt}
+
+When suggesting changes:
+1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
+2. Provide specific replacements that preserve the original intent
+3. Clearly indicate which parts should be replaced and with what
+4. If multiple options are suggested, number them clearly
+5. NEVER discuss HTML tags or formatting - focus only on the content`;
+      } else {
+        // No specific text selection, working with the entire document
+        userPrompt = `Here's the current content I'm working with:
+        
+"""
+${strippedContent}
+"""
+
+Document structure:
+${documentStructure}
+
+User's request: ${prompt}
+
+IMPORTANT:
+1. Do NOT discuss HTML tags or formatting - focus only on the content
+2. If suggesting specific changes, clearly quote the original text and provide the replacement
+3. If multiple options are suggested, number them clearly`;
+      }
+      
       // Validate the model
       const model = "claude-3-7-sonnet-20250219";
       
@@ -93,13 +192,8 @@ exports.handler = async function(event, context) {
         model: model,
         temperature: temperature,
         systemPromptLength: systemPrompt ? systemPrompt.length : 0,
-        promptLength: prompt ? prompt.length : 0
+        promptLength: userPrompt ? userPrompt.length : 0
       });
-      
-      // Log beginning of the system prompt (for debugging)
-      if (systemPrompt) {
-        console.log('System prompt start:', systemPrompt.substring(0, 100) + '...');
-      }
       
       // Create the request payload
       const requestPayload = {
@@ -110,12 +204,10 @@ exports.handler = async function(event, context) {
         messages: [
           { 
             role: "user", 
-            content: prompt 
+            content: userPrompt 
           }
         ]
       };
-      
-      console.log('Request payload:', JSON.stringify(requestPayload).substring(0, 200) + '...');
       
       // Make request to Anthropic API with the fetched configuration
       const response = await axios.post(
@@ -143,43 +235,27 @@ exports.handler = async function(event, context) {
         statusCode: 200,
         headers,
         body: JSON.stringify({
-          message: response.data.content[0].text
+          message: response.data.content[0].text,
+          original: {
+            fullContent: currentContent,
+            selectedText: selectedText || null
+          }
         })
       };
     } catch (apiError) {
       // Detailed error logging
       console.error('Error from API:', apiError.message);
       
-      // Log the full error object for better debugging
-      console.error('Full error object:', JSON.stringify(apiError).substring(0, 500) + '...');
-      
       if (apiError.response) {
         console.error('Response status:', apiError.response.status);
         console.error('Response data:', JSON.stringify(apiError.response.data));
-        
-        // Log request details
-        if (apiError.response.config) {
-          console.error('Request URL:', apiError.response.config.url);
-          console.error('Request method:', apiError.response.config.method);
-          
-          // Log request headers without sensitive info
-          const safeHeaders = {...apiError.response.config.headers};
-          if (safeHeaders['x-api-key']) safeHeaders['x-api-key'] = '[REDACTED]';
-          if (safeHeaders['Authorization']) safeHeaders['Authorization'] = '[REDACTED]';
-          console.error('Request headers:', JSON.stringify(safeHeaders));
-          
-          // Log data sample
-          if (apiError.response.config.data) {
-            console.error('Request data sample:', apiError.response.config.data.substring(0, 200) + '...');
-          }
-        }
       }
       
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Error from Anthropic API',
+          error: 'Error from API',
           message: apiError.message,
           details: apiError.response ? apiError.response.data : 'No additional details available'
         })
@@ -200,6 +276,29 @@ exports.handler = async function(event, context) {
     };
   }
 };
+
+// Function to get content record from Airtable
+async function getContentRecord(recordId) {
+  try {
+    const response = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error getting content record:', error.message);
+    throw error;
+  }
+}
 
 // Function to fetch assistant configuration from Airtable
 async function getAssistantConfig(assistantKey, recordId) {
