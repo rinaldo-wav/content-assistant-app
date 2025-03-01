@@ -235,20 +235,17 @@ async function getAssistantConfig(assistantKey, recordId) {
     }
     
     // Construct a filter formula to find the specific assistant
-    // This gets an active assistant with matching key that's linked to the content
-    const filterFormula = `AND(Key="${assistantKey}", Active=TRUE)`;
+    // Properly format the filter formula for Airtable
+    const filterFormula = encodeURIComponent(`AND({Key}="${assistantKey}", {Active}=TRUE())`);
     
     console.log(`Fetching assistants with filter: ${filterFormula}`);
     
     // Get the specific assistant by key
     const assistantsResponse = await axios.get(
-      'https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants',
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${filterFormula}`,
       {
         headers: {
           'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
-        },
-        params: {
-          filterByFormula: filterFormula
         }
       }
     );
@@ -266,6 +263,28 @@ async function getAssistantConfig(assistantKey, recordId) {
         key: assistantsResponse.data.records[0].fields.Key,
         name: assistantsResponse.data.records[0].fields.Name
       }));
+    } else {
+      // If no assistants were found, log additional information
+      console.log(`No assistants found with key: ${assistantKey} and Active=TRUE`);
+      
+      // Try without the Active filter to see if any assistants exist with this key
+      const simpleFilter = encodeURIComponent(`{Key}="${assistantKey}"`);
+      console.log(`Trying simpler filter: ${simpleFilter}`);
+      
+      const checkResponse = await axios.get(
+        `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${simpleFilter}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+          }
+        }
+      );
+      
+      if (checkResponse.data && checkResponse.data.records && checkResponse.data.records.length > 0) {
+        console.log(`Found ${checkResponse.data.records.length} assistants with key "${assistantKey}" but they may not be active`);
+      } else {
+        console.log(`No assistants found with key: ${assistantKey} at all`);
+      }
     }
     
     // Check if the assistant exists in the linked assistants
@@ -283,6 +302,15 @@ async function getAssistantConfig(assistantKey, recordId) {
     return matchingAssistants[0].fields;
   } catch (error) {
     console.error('Error fetching assistant config:', error.message);
+    
+    if (error.response) {
+      console.error('Error response details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: JSON.stringify(error.response.data).substring(0, 500) // Log first 500 chars
+      });
+    }
+    
     console.error('Error stack:', error.stack);
     throw error;
   }
