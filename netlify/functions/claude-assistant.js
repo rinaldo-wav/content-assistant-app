@@ -63,106 +63,12 @@ function analyzeContentStructure(html) {
   return `Document uses these HTML tags: ${sortedTags}`;
 }
 
-// Helper function to get content record from Airtable
-async function getContentRecord(recordId) {
-  try {
-    const response = await axios.get(
-      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
-        }
-      }
-    );
-    
-    if (!response.data || !response.data.fields) {
-      throw new Error(`Could not retrieve content record ${recordId}`);
-    }
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error getting content record:', error.message);
-    throw error;
-  }
-}
-
-// Helper function to fetch assistant configuration from Airtable
-async function getAssistantConfig(assistantKey, recordId) {
-  try {
-    // First get the content record to find linked assistants
-    console.log(`Fetching content record: ${recordId}`);
-    const contentResponse = await axios.get(
-      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
-        }
-      }
-    );
-    
-    // Check if we got a valid response
-    if (!contentResponse.data || !contentResponse.data.fields) {
-      throw new Error(`Could not retrieve content record ${recordId}`);
-    }
-    
-    // Get the linked assistant IDs
-    const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || [];
-    
-    console.log(`Linked assistant IDs: ${JSON.stringify(linkedAssistantIds)}`);
-    
-    if (!linkedAssistantIds || linkedAssistantIds.length === 0) {
-      throw new Error('No assistants linked to this content');
-    }
-    
-    // Construct a filter formula to find the specific assistant
-    const filterFormula = encodeURIComponent(
-      `AND(Key="${assistantKey}", Active=TRUE(), OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')}))`
-    );
-    
-    console.log(`Fetching assistants with filter: ${filterFormula}`);
-    
-    // Get the specific assistant by key
-    const assistantsResponse = await axios.get(
-      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${filterFormula}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
-        }
-      }
-    );
-    
-    if (!assistantsResponse.data || !assistantsResponse.data.records) {
-      throw new Error('Failed to retrieve assistants from Airtable');
-    }
-    
-    console.log(`Found ${assistantsResponse.data.records.length} matching assistants`);
-    
-    // Check if the assistant exists in the linked assistants
-    const matchingAssistants = assistantsResponse.data.records.filter(assistant => 
-      linkedAssistantIds.includes(assistant.id)
-    );
-    
-    console.log(`Found ${matchingAssistants.length} assistants linked to content`);
-    
-    if (matchingAssistants.length === 0) {
-      throw new Error(`Assistant ${assistantKey} not found or not linked to this content`);
-    }
-    
-    // Return the first matching assistant's fields
-    return matchingAssistants[0].fields;
-  } catch (error) {
-    console.error('Error fetching assistant config:', error.message);
-    throw error;
-  }
-}
-
 exports.handler = async function(event, context) {
-  // Enable CORS with more comprehensive headers
+  // Enable CORS
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
+    'Access-Control-Allow-Origin': '*',  // In production, change to your domain
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
   
   // Handle preflight OPTIONS request
@@ -170,63 +76,42 @@ exports.handler = async function(event, context) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ message: 'Successful preflight call' })
+      body: ''
     };
   }
   
   try {
-    // Robust request body parsing
-    let requestBody;
-    try {
-      requestBody = JSON.parse(event.body);
-    } catch (parseError) {
-      console.error('Failed to parse request body:', parseError);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Invalid request body',
-          details: parseError.message 
-        })
-      };
-    }
-
-    const { prompt, assistantType, recordId, selectedText } = requestBody;
+    // Parse request body
+    const requestBody = JSON.parse(event.body);
+    const { prompt, assistantType, recordId, selectedText, selectedContext } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
     
-    // Validate required parameters
-    const missingParams = [];
-    if (!prompt) missingParams.push('prompt');
-    if (!assistantType) missingParams.push('assistantType');
-    if (!recordId) missingParams.push('recordId');
-    
-    if (missingParams.length > 0) {
-      console.log('Missing required parameters:', missingParams);
+    if (!prompt || !assistantType || !recordId) {
+      console.log('Missing required parameters');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ 
-          error: 'Missing required parameters',
-          details: missingParams 
-        })
+        body: JSON.stringify({ error: 'Missing required parameters (prompt, assistantType, or recordId)' })
       };
     }
     
     // Check for API keys
-    const missingApiKeys = [];
-    if (!process.env.ANTHROPIC_API_KEY) missingApiKeys.push('ANTHROPIC_API_KEY');
-    if (!process.env.AIRTABLE_API_KEY) missingApiKeys.push('AIRTABLE_API_KEY');
-    
-    if (missingApiKeys.length > 0) {
-      console.log('Missing API keys:', missingApiKeys);
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.log('ANTHROPIC_API_KEY is not set in environment variables');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ 
-          error: 'API key configuration error',
-          details: missingApiKeys 
-        })
+        body: JSON.stringify({ error: 'API key configuration error' })
+      };
+    }
+    
+    if (!process.env.AIRTABLE_API_KEY) {
+      console.log('AIRTABLE_API_KEY is not set in environment variables');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Airtable API key configuration error' })
       };
     }
     
@@ -337,7 +222,7 @@ IMPORTANT:
       }
       
       // Validate the model
-      const model = "claude-3-opus-20240229";
+      const model = "claude-3-7-sonnet-20250219";
       
       console.log('Sending request to Anthropic API with config:', {
         model: model,
@@ -427,3 +312,141 @@ IMPORTANT:
     };
   }
 };
+
+// Function to get content record from Airtable
+async function getContentRecord(recordId) {
+  try {
+    const response = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error getting content record:', error.message);
+    throw error;
+  }
+}
+
+// Function to fetch assistant configuration from Airtable
+async function getAssistantConfig(assistantKey, recordId) {
+  try {
+    // First get the content record to find linked assistants
+    console.log(`Fetching content record: ${recordId}`);
+    const contentResponse = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    // Check if we got a valid response
+    if (!contentResponse.data || !contentResponse.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    // Debug: Log all field names to help identify the correct field
+    console.log('Available fields in content record:', Object.keys(contentResponse.data.fields));
+    
+    // Get the linked assistant IDs - CORRECTED FIELD NAME WITH FALLBACKS
+    const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || 
+                              contentResponse.data.fields['AI_Assistants'] ||
+                              [];
+    
+    console.log(`Linked assistant IDs: ${JSON.stringify(linkedAssistantIds)}`);
+    
+    if (!linkedAssistantIds || linkedAssistantIds.length === 0) {
+      throw new Error('No assistants linked to this content');
+    }
+    
+    // Construct a filter formula to find the specific assistant
+    // Properly format the filter formula for Airtable
+    const filterFormula = encodeURIComponent(`AND({Key}="${assistantKey}", {Active}=TRUE())`);
+    
+    console.log(`Fetching assistants with filter: ${filterFormula}`);
+    
+    // Get the specific assistant by key
+    const assistantsResponse = await axios.get(
+      `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${filterFormula}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!assistantsResponse.data || !assistantsResponse.data.records) {
+      throw new Error('Failed to retrieve assistants from Airtable');
+    }
+    
+    console.log(`Found ${assistantsResponse.data.records.length} matching assistants`);
+    
+    // Debug: Log the first assistant if available
+    if (assistantsResponse.data.records.length > 0) {
+      console.log('First matching assistant:', JSON.stringify({
+        id: assistantsResponse.data.records[0].id,
+        key: assistantsResponse.data.records[0].fields.Key,
+        name: assistantsResponse.data.records[0].fields.Name
+      }));
+    } else {
+      // If no assistants were found, log additional information
+      console.log(`No assistants found with key: ${assistantKey} and Active=TRUE`);
+      
+      // Try without the Active filter to see if any assistants exist with this key
+      const simpleFilter = encodeURIComponent(`{Key}="${assistantKey}"`);
+      console.log(`Trying simpler filter: ${simpleFilter}`);
+      
+      const checkResponse = await axios.get(
+        `https://api.airtable.com/v0/apptv25rN4A3SoYn8/AI%20Assistants?filterByFormula=${simpleFilter}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+          }
+        }
+      );
+      
+      if (checkResponse.data && checkResponse.data.records && checkResponse.data.records.length > 0) {
+        console.log(`Found ${checkResponse.data.records.length} assistants with key "${assistantKey}" but they may not be active`);
+      } else {
+        console.log(`No assistants found with key: ${assistantKey} at all`);
+      }
+    }
+    
+    // Check if the assistant exists in the linked assistants
+    const matchingAssistants = assistantsResponse.data.records.filter(assistant => 
+      linkedAssistantIds.includes(assistant.id)
+    );
+    
+    console.log(`Found ${matchingAssistants.length} assistants linked to content`);
+    
+    if (matchingAssistants.length === 0) {
+      throw new Error(`Assistant ${assistantKey} not found or not linked to this content`);
+    }
+    
+    // Return the first matching assistant's fields
+    return matchingAssistants[0].fields;
+  } catch (error) {
+    console.error('Error fetching assistant config:', error.message);
+    
+    if (error.response) {
+      console.error('Error response details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: JSON.stringify(error.response.data).substring(0, 500) // Log first 500 chars
+      });
+    }
+    
+    console.error('Error stack:', error.stack);
+    throw error;
+  }
+}
