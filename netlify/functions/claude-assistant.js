@@ -40,29 +40,6 @@ function extractDocumentStructure(html) {
   return headings.join('\n');
 }
 
-// Helper function to analyze content structure and get tag information
-function analyzeContentStructure(html) {
-  if (!html) return '';
-  
-  // Count most common tags
-  const tagCounts = {};
-  const tagMatches = html.match(/<([a-z][a-z0-9]*)\b[^>]*>/gi) || [];
-  
-  tagMatches.forEach(tag => {
-    const tagName = tag.match(/<([a-z][a-z0-9]*)\b/i)[1].toLowerCase();
-    tagCounts[tagName] = (tagCounts[tagName] || 0) + 1;
-  });
-  
-  // Get the most common tags
-  const sortedTags = Object.entries(tagCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([tag, count]) => `${tag} (${count})`)
-    .join(', ');
-  
-  return `Document uses these HTML tags: ${sortedTags}`;
-}
-
 exports.handler = async function(event, context) {
   // Enable CORS
   const headers = {
@@ -83,7 +60,7 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText, selectedContext } = requestBody;
+    const { prompt, assistantType, recordId, selectedText } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
     
@@ -158,9 +135,6 @@ exports.handler = async function(event, context) {
       // Extract document structure for context
       const documentStructure = extractDocumentStructure(currentContent);
       
-      // Analyze document structure for formatting information
-      const contentStructureInfo = analyzeContentStructure(currentContent);
-      
       // Prepare user prompt based on whether text is selected or not
       let userPrompt;
       
@@ -173,8 +147,6 @@ exports.handler = async function(event, context) {
         
         userPrompt = `I'm working on a document with the following structure:
 ${documentStructure}
-
-${contentStructureInfo}
 
 The user has selected this specific portion of text:
 """
@@ -191,7 +163,7 @@ User's request: ${prompt}
 When suggesting changes:
 1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
 2. Provide specific replacements that preserve the original intent AND FORMATTING
-3. When providing a suggested replacement, include it within triple backticks (```) 
+3. When providing a suggested replacement, include it within triple backticks (\`\`\`)
 4. If the original text had formatting like headings, paragraphs, or lists, maintain that formatting in your suggestion
 5. For any replacement text, structure it with appropriate HTML tags like <p>, <h1>, <h2>, etc. consistent with the document's existing format
 6. If multiple options are suggested, number them clearly
@@ -208,12 +180,10 @@ ${strippedContent}
 Document structure:
 ${documentStructure}
 
-${contentStructureInfo}
-
 User's request: ${prompt}
 
 IMPORTANT:
-1. When providing a suggested replacement, include it within triple backticks (```) 
+1. When providing a suggested replacement, include it within triple backticks (\`\`\`)
 2. Maintain the document's existing HTML structure using appropriate tags like <p>, <h1>, <h2>, etc.
 3. Do NOT discuss HTML tags or formatting in your explanations - focus only on the content
 4. If suggesting specific changes, clearly quote the original text and provide the replacement
@@ -224,12 +194,7 @@ IMPORTANT:
       // Validate the model
       const model = "claude-3-7-sonnet-20250219";
       
-      console.log('Sending request to Anthropic API with config:', {
-        model: model,
-        temperature: temperature,
-        systemPromptLength: systemPrompt ? systemPrompt.length : 0,
-        promptLength: userPrompt ? userPrompt.length : 0
-      });
+      console.log('Sending request to Anthropic API');
       
       // Create the request payload
       const requestPayload = {
@@ -260,7 +225,6 @@ IMPORTANT:
       
       console.log('Response received from Anthropic API');
       console.log('Response status:', response.status);
-      console.log('Response contains content:', !!response.data.content);
       
       if (!response.data.content || !response.data.content[0] || !response.data.content[0].text) {
         throw new Error('Anthropic API returned an unexpected response format');
@@ -355,7 +319,6 @@ async function getAssistantConfig(assistantKey, recordId) {
       throw new Error(`Could not retrieve content record ${recordId}`);
     }
     
-    // Debug: Log all field names to help identify the correct field
     console.log('Available fields in content record:', Object.keys(contentResponse.data.fields));
     
     // Get the linked assistant IDs - CORRECTED FIELD NAME WITH FALLBACKS
