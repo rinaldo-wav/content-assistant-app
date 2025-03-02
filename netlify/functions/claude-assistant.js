@@ -163,12 +163,14 @@ User's request: ${prompt}
 When suggesting changes:
 1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
 2. Provide specific replacements that preserve the original intent AND FORMATTING
-3. When providing a suggested replacement, include it within triple backticks (\`\`\`)
-4. If the original text had formatting like headings, paragraphs, or lists, maintain that formatting in your suggestion
-5. For any replacement text, structure it with appropriate HTML tags like <p>, <h1>, <h2>, etc. consistent with the document's existing format
-6. If multiple options are suggested, number them clearly
-7. NEVER discuss HTML tags or formatting in your explanations - focus only on the content
-8. Remember: The most important thing is maintaining the document's formatting while improving the content`;
+3. ALWAYS provide your suggested changes within triple backticks (```) AFTER you've given your explanations
+4. Format your response like this:
+   - First explain your suggested improvements
+   - Then include a clear heading "Suggested Content:"
+   - Then provide the suggested replacement within triple backticks
+5. If you provide multiple options, clearly number them and put EACH option within its own set of triple backticks
+6. For any replacement text, structure it with appropriate HTML tags like <p>, <h1>, <h2>, etc. consistent with the document's existing format
+7. Remember: The most important thing is maintaining the document's formatting while improving the content`;
       } else {
         // No specific text selection, working with the entire document
         userPrompt = `Here's the current content I'm working with:
@@ -183,11 +185,14 @@ ${documentStructure}
 User's request: ${prompt}
 
 IMPORTANT:
-1. When providing a suggested replacement, include it within triple backticks (\`\`\`)
-2. Maintain the document's existing HTML structure using appropriate tags like <p>, <h1>, <h2>, etc.
-3. Do NOT discuss HTML tags or formatting in your explanations - focus only on the content
-4. If suggesting specific changes, clearly quote the original text and provide the replacement
-5. If multiple options are suggested, number them clearly
+1. When providing a suggested replacement, ALWAYS include it within triple backticks (```) AFTER you've given your explanations
+2. Format your response like this:
+   - First explain your suggested improvements
+   - Then include a clear heading "Suggested Content:"
+   - Then provide the suggested replacement within triple backticks
+3. Maintain the document's existing HTML structure using appropriate tags like <p>, <h1>, <h2>, etc.
+4. If suggesting multiple options, clearly number them and put EACH option within its own set of triple backticks
+5. Do NOT discuss HTML tags or formatting in your explanations - focus only on the content
 6. Remember: The most important thing is maintaining the document's formatting while improving the content`;
       }
       
