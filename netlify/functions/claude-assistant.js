@@ -23,6 +23,47 @@ function stripHtml(html) {
   return processedHtml;
 }
 
+// Add interaction mode to userPrompt selection
+let userPrompt;
+
+if (requestBody.interactionMode === 'content') {
+  // Use content-focused prompt
+  userPrompt = `I'm working on a document with the following structure:
+  ${documentStructure}
+  
+  ${selectedText ? `The user has selected this specific portion of text:
+  """
+  ${cleanSelectedText}
+  """
+  
+  The selected text is part of this larger document:
+  """
+  ${strippedContent}
+  """` : `Here's the current content I'm working with:
+  
+  """
+  ${strippedContent}
+  """`}
+  
+  User's request: ${prompt}
+  
+  When suggesting changes:
+  1. Provide specific improvements that preserve the original intent and formatting
+  2. ALWAYS include a clear heading "Suggested Content:" 
+  3. After this heading, provide your suggested content with proper HTML formatting
+  4. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
+  5. Focus on addressing the user's specific request`;
+} else {
+  // Use conversation-focused prompt
+  userPrompt = `You are having a natural conversation with the user about their content.
+  
+  Here's the context:
+  - The document they're working on: "${strippedContent.substring(0, 200)}${strippedContent.length > 200 ? '...' : ''}"
+  - Their current question/message: "${prompt}"
+  
+  Respond conversationally as a helpful writing assistant. Only provide specific content suggestions if directly asked.`;
+}
+
 // Helper function to extract basic document structure
 function extractDocumentStructure(html) {
   if (!html) return '';
