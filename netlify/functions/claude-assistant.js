@@ -23,47 +23,6 @@ function stripHtml(html) {
   return processedHtml;
 }
 
-// Add interaction mode to userPrompt selection
-let userPrompt;
-
-if (requestBody.interactionMode === 'content') {
-  // Use content-focused prompt
-  userPrompt = `I'm working on a document with the following structure:
-  ${documentStructure}
-  
-  ${selectedText ? `The user has selected this specific portion of text:
-  """
-  ${cleanSelectedText}
-  """
-  
-  The selected text is part of this larger document:
-  """
-  ${strippedContent}
-  """` : `Here's the current content I'm working with:
-  
-  """
-  ${strippedContent}
-  """`}
-  
-  User's request: ${prompt}
-  
-  When suggesting changes:
-  1. Provide specific improvements that preserve the original intent and formatting
-  2. ALWAYS include a clear heading "Suggested Content:" 
-  3. After this heading, provide your suggested content with proper HTML formatting
-  4. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
-  5. Focus on addressing the user's specific request`;
-} else {
-  // Use conversation-focused prompt
-  userPrompt = `You are having a natural conversation with the user about their content.
-  
-  Here's the context:
-  - The document they're working on: "${strippedContent.substring(0, 200)}${strippedContent.length > 200 ? '...' : ''}"
-  - Their current question/message: "${prompt}"
-  
-  Respond conversationally as a helpful writing assistant. Only provide specific content suggestions if directly asked.`;
-}
-
 // Helper function to extract basic document structure
 function extractDocumentStructure(html) {
   if (!html) return '';
@@ -101,9 +60,9 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText } = requestBody;
+    const { prompt, assistantType, recordId, selectedText, interactionMode } = requestBody;
     
-    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}`);
+    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
     
     if (!prompt || !assistantType || !recordId) {
       console.log('Missing required parameters');
@@ -176,65 +135,49 @@ exports.handler = async function(event, context) {
       // Extract document structure for context
       const documentStructure = extractDocumentStructure(currentContent);
       
-      // Prepare user prompt based on whether text is selected or not
+      // Determine the user prompt based on interaction mode
       let userPrompt;
       
-      if (selectedText) {
-        // User has selected specific text
-        console.log('Processing request with selected text');
-        
-        // Strip HTML from the selected text too
-        const cleanSelectedText = stripHtml(selectedText);
+      if (!interactionMode || interactionMode === 'content') {
+        // Content mode - focused on generating suggestions
+        console.log('Using content mode prompt');
         
         userPrompt = `I'm working on a document with the following structure:
 ${documentStructure}
 
-The user has selected this specific portion of text:
+${selectedText ? `The user has selected this specific portion of text:
 """
-${cleanSelectedText}
+${stripHtml(selectedText)}
 """
 
 The selected text is part of this larger document:
 """
 ${strippedContent}
+"""` : `Here's the current content I'm working with:
+        
 """
+${strippedContent}
+"""`}
 
 User's request: ${prompt}
 
 When suggesting changes:
-1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
-2. Provide specific replacements that preserve the original intent AND FORMATTING
-3. ALWAYS provide your suggested changes within triple backticks (\`\`\`) AFTER you've given your explanations
-4. Format your response like this:
-   - First explain your suggested improvements
-   - Then include a clear heading "Suggested Content:"
-   - Then provide the suggested replacement within triple backticks
-5. If you provide multiple options, clearly number them and put EACH option within its own set of triple backticks
-6. For any replacement text, structure it with appropriate HTML tags like <p>, <h1>, <h2>, etc. consistent with the document's existing format
-7. Remember: The most important thing is maintaining the document's formatting while improving the content`;
+1. Provide specific improvements that preserve the original intent AND FORMATTING
+2. ALWAYS include a clear heading "Suggested Content:" 
+3. After this heading, provide your suggested content with proper HTML formatting
+4. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
+5. Focus on addressing the user's specific request`;
       } else {
-        // No specific text selection, working with the entire document
-        userPrompt = `Here's the current content I'm working with:
+        // Conversation mode - more natural chat without forced suggestions
+        console.log('Using conversation mode prompt');
         
-"""
-${strippedContent}
-"""
-
-Document structure:
-${documentStructure}
-
-User's request: ${prompt}
-
-IMPORTANT:
-1. When providing a suggested replacement, ALWAYS include it within triple backticks (\`\`\`) AFTER you've given your explanations
-2. Format your response like this:
-   - First explain your suggested improvements
-   - Then include a clear heading "Suggested Content:"
-   - Then provide the suggested replacement within triple backticks
-3. Maintain the document's existing HTML structure using appropriate tags like <p>, <h1>, <h2>, etc.
-4. If suggesting multiple options, clearly number them and put EACH option within its own set of triple backticks
-5. Do NOT discuss HTML tags or formatting in your explanations - focus only on the content
-6. Remember: The most important thing is maintaining the document's formatting while improving the content`;
+        userPrompt = `You are having a natural conversation with the user about their content.
+  
+Here's the context:
+- The document they're working on: "${strippedContent.substring(0, 200)}${strippedContent.length > 200 ? '...' : ''}"
+- Their current question/message: "${prompt}"
+  
+Respond conversationally as a helpful writing assistant. Only provide specific content suggestions if directly asked.`;
       }
       
       // Validate the model
