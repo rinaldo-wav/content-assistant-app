@@ -34,7 +34,7 @@ function extractDocumentStructure(html) {
   const headings = headingMatch.map(h => {
     const level = h.match(/<h([1-6])/i)[1];
     const text = h.replace(/<[^>]*>/g, '').trim();
-    return `${'#'.repeat(level)} ${text}`;
+    return '#'.repeat(level) + ' ' + text;
   });
   
   return headings.join('\n');
@@ -163,7 +163,7 @@ User's request: ${prompt}
 When suggesting changes:
 1. Focus ONLY on the selected text unless explicitly asked to consider the broader context
 2. Provide specific replacements that preserve the original intent AND FORMATTING
-3. ALWAYS provide your suggested changes within triple backticks (```) AFTER you've given your explanations
+3. ALWAYS provide your suggested changes within triple backticks (\`\`\`) AFTER you've given your explanations
 4. Format your response like this:
    - First explain your suggested improvements
    - Then include a clear heading "Suggested Content:"
@@ -185,7 +185,7 @@ ${documentStructure}
 User's request: ${prompt}
 
 IMPORTANT:
-1. When providing a suggested replacement, ALWAYS include it within triple backticks (```) AFTER you've given your explanations
+1. When providing a suggested replacement, ALWAYS include it within triple backticks (\`\`\`) AFTER you've given your explanations
 2. Format your response like this:
    - First explain your suggested improvements
    - Then include a clear heading "Suggested Content:"
