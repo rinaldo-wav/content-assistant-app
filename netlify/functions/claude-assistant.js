@@ -60,7 +60,7 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText, interactionMode } = requestBody;
+    const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
     
@@ -135,6 +135,18 @@ exports.handler = async function(event, context) {
       // Extract document structure for context
       const documentStructure = extractDocumentStructure(currentContent);
       
+      // Process conversation history for context
+      let historyText = '';
+      if (conversationHistory && conversationHistory.length > 0) {
+        historyText = 'Previous conversation:\n';
+        // Only include the last few messages to avoid token limits
+        const recentHistory = conversationHistory.slice(Math.max(0, conversationHistory.length - 6));
+        recentHistory.forEach(entry => {
+          historyText += `${entry.role === 'user' ? 'User' : 'Assistant'}: ${entry.content.substring(0, 300)}${entry.content.length > 300 ? '...' : ''}\n`;
+        });
+        historyText += '\n';
+      }
+      
       // Determine the user prompt based on interaction mode
       let userPrompt;
       
@@ -159,6 +171,8 @@ ${strippedContent}
 ${strippedContent}
 """`}
 
+${historyText ? `Our previous conversation about this content:\n${historyText}\n` : ''}
+
 User's request: ${prompt}
 
 When suggesting changes:
@@ -168,16 +182,17 @@ When suggesting changes:
 4. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
 5. Focus on addressing the user's specific request`;
       } else {
-        // Conversation mode - more natural chat without forced suggestions
+        // Conversation mode with history awareness
         console.log('Using conversation mode prompt');
         
-        userPrompt = `You are having a natural conversation with the user about their content.
-  
+        userPrompt = `You are having an ongoing conversation with the user about their content.
+
+${historyText}
 Here's the context:
 - The document they're working on: "${strippedContent.substring(0, 200)}${strippedContent.length > 200 ? '...' : ''}"
 - Their current question/message: "${prompt}"
-  
-Respond conversationally as a helpful writing assistant. Only provide specific content suggestions if directly asked.`;
+
+Respond conversationally as a helpful writing assistant, remembering the context of your previous conversation. Only provide specific content suggestions if directly asked.`;
       }
       
       // Validate the model
@@ -234,7 +249,6 @@ Respond conversationally as a helpful writing assistant. Only provide specific c
     } catch (apiError) {
       // Detailed error logging
       console.error('Error from API:', apiError.message);
-      
       if (apiError.response) {
         console.error('Response status:', apiError.response.status);
         console.error('Response data:', JSON.stringify(apiError.response.data));
