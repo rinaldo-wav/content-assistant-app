@@ -133,7 +133,7 @@ exports.handler = async function(event, context) {
   try {
     // Parse request body
     const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory } = requestBody;
+    const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
     
@@ -291,15 +291,12 @@ Here's the context:
 
 Respond conversationally as a helpful writing assistant, remembering the context of your previous conversation. Only provide specific content suggestions if directly asked.`;
       }
-
-// INSERT TOKEN CHECKING CODE RIGHT HERE, BETWEEN THESE SECTIONS
-      // Check if content might exceed token limits
-      const strippedContent = stripHtml(currentContent);
+      
+      // Token checking and content size validation
       const selectedTextContent = selectedText ? stripHtml(selectedText) : '';
       const contentToProcess = selectedText ? selectedTextContent : strippedContent;
 
-      // If this is flagged as potentially large content or actually is large
-      if (requestBody.isLargeContent || estimateTokenCount(contentToProcess) > 4000) {
+      if (isLargeContent || estimateTokenCount(contentToProcess) > 4000) {
         console.log('Large content detected, checking token limits');
         
         // If we're likely to exceed token limits
@@ -337,7 +334,6 @@ Respond conversationally as a helpful writing assistant, remembering the context
           }
         }
       }
-      // END OF INSERTED CODE
       
       // Validate the model
       const model = "claude-3-7-sonnet-20250219";
@@ -398,12 +394,42 @@ Respond conversationally as a helpful writing assistant, remembering the context
         console.error('Response data:', JSON.stringify(apiError.response.data));
       }
       
+      // Check for specific error types
+      let errorMessage = apiError.message;
+      let statusCode = 500;
+      
+      // Check for token limits
+      if (apiError.message && (
+        apiError.message.includes('token limit') || 
+        apiError.message.includes('max tokens') ||
+        apiError.message.includes('too many tokens')
+      )) {
+        errorMessage = 'The content is too large for AI processing. Please select a smaller portion of text.';
+        statusCode = 400;
+      }
+      
+      // Check for timeout
+      if (apiError.message && (
+        apiError.message.includes('timeout') || 
+        apiError.message.includes('ETIMEDOUT') ||
+        apiError.message.includes('504')
+      )) {
+        errorMessage = 'The request timed out. This usually happens when processing very large content.';
+        statusCode = 408;
+      }
+      
+      // Check for rate limits
+      if (apiError.response && apiError.response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again in a few moments.';
+        statusCode = 429;
+      }
+      
       return {
-        statusCode: 500,
+        statusCode: statusCode,
         headers,
         body: JSON.stringify({ 
           error: 'Error from API',
-          message: apiError.message,
+          message: errorMessage,
           details: apiError.response ? apiError.response.data : 'No additional details available'
         })
       };
