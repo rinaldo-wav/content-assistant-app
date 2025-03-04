@@ -27,17 +27,78 @@ function stripHtml(html) {
 function extractDocumentStructure(html) {
   if (!html) return '';
   
-  // Extract headings and paragraph beginnings
-  const headingMatch = html.match(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi) || [];
+  // Parse the HTML string using a regex-based approach
+  // Get headings with their content
+  const headings = [];
+  const headingRegex = /<h([1-6])[^>]*>(.*?)<\/h\1>/gi;
+  let headingMatch;
   
-  // Map headings to a simple structure
-  const headings = headingMatch.map(h => {
-    const level = h.match(/<h([1-6])/i)[1];
-    const text = h.replace(/<[^>]*>/g, '').trim();
-    return '#'.repeat(level) + ' ' + text;
-  });
+  while ((headingMatch = headingRegex.exec(html)) !== null) {
+    const level = headingMatch[1];
+    const text = headingMatch[2].replace(/<[^>]*>/g, '').trim();
+    headings.push({
+      level: parseInt(level),
+      text: text,
+      indentation: '#'.repeat(parseInt(level))
+    });
+  }
   
-  return headings.join('\n');
+  // Count paragraphs and their approximate length
+  const paragraphs = html.match(/<p[^>]*>.*?<\/p>/gi) || [];
+  const paragraphCount = paragraphs.length;
+  
+  // Detect lists
+  const lists = {
+    ordered: (html.match(/<ol[^>]*>.*?<\/ol>/gis) || []).length,
+    unordered: (html.match(/<ul[^>]*>.*?<\/ul>/gis) || []).length
+  };
+  
+  // Count links
+  const links = (html.match(/<a[^>]*>.*?<\/a>/gi) || []).length;
+  
+  // Create a structural outline
+  let structure = "Document Structure:\n";
+  
+  // Add heading hierarchy
+  if (headings.length > 0) {
+    structure += "\nHeading Hierarchy:\n";
+    headings.forEach(h => {
+      structure += `${h.indentation} ${h.text}\n`;
+    });
+  }
+  
+  // Add statistics
+  structure += "\nContent Statistics:\n";
+  structure += `- ${paragraphCount} paragraphs\n`;
+  structure += `- ${lists.ordered} ordered lists\n`;
+  structure += `- ${lists.unordered} unordered lists\n`;
+  structure += `- ${links} links\n`;
+  
+  // Analyze document sections
+  structure += "\nDocument Flow:\n";
+  
+  // Simplified section analysis
+  let currentSection = null;
+  let sectionContent = [];
+  
+  for (const heading of headings) {
+    if (heading.level === 1 || heading.level === 2) {
+      if (currentSection) {
+        structure += `- ${currentSection}: ${sectionContent.length} content blocks\n`;
+      }
+      currentSection = heading.text;
+      sectionContent = [];
+    } else {
+      sectionContent.push(heading.text);
+    }
+  }
+  
+  // Add the last section
+  if (currentSection) {
+    structure += `- ${currentSection}: ${sectionContent.length} content blocks\n`;
+  }
+  
+  return structure;
 }
 
 // Helper function to estimate token count
@@ -227,8 +288,14 @@ exports.handler = async function(event, context) {
         // Content mode - focused on generating suggestions
         console.log('Using content mode prompt');
         
-        userPrompt = `I'm working on a document with the following structure:
+        userPrompt = `I'm working on a document with the following detailed structure:
 ${documentStructure}
+
+When making improvements:
+1. Pay close attention to the document's existing structure and formatting
+2. Maintain header levels (h1, h2, h3) as they currently exist
+3. Preserve the document flow and section organization
+4. When replacing text, match the exact HTML structure of the original
 
 ${selectedText ? `The user has selected this specific portion of text:
 """
