@@ -175,12 +175,21 @@ ${historyText ? `Our previous conversation about this content:\n${historyText}\n
 
 User's request: ${prompt}
 
-When suggesting changes:
-1. Provide specific improvements that preserve the original intent AND FORMATTING
-2. ALWAYS include a clear heading "Suggested Content:" 
-3. After this heading, provide your suggested content with proper HTML formatting
-4. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
-5. Focus on addressing the user's specific request`;
+When suggesting improvements:
+1. Format each option clearly with "Option 1:", "Option 2:", etc.
+2. Present each option in a way that's ready to be implemented directly
+3. Use proper HTML formatting for each option
+4. For multiple suggestions, structure your response like this:
+
+I've come up with several options to improve this:
+
+Option 1: [first option with proper HTML formatting]
+Option 2: [second option with proper HTML formatting]
+
+5. For single suggestions, use a clear heading "Suggested Content:" 
+6. After this heading, provide your suggested content with proper HTML formatting
+7. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
+8. Focus on addressing the user's specific request`;
       } else {
         // Conversation mode with history awareness
         console.log('Using conversation mode prompt');
