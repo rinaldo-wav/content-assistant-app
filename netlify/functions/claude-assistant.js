@@ -162,6 +162,7 @@ ${selectedText ? `The user has selected this specific portion of text:
 ${stripHtml(selectedText)}
 """
 
+Your task is to IMMEDIATELY improve this text without asking questions.
 The selected text is part of this larger document:
 """
 ${strippedContent}
@@ -169,27 +170,27 @@ ${strippedContent}
         
 """
 ${strippedContent}
-"""`}
+"""
+
+Your task is to IMMEDIATELY improve this content without asking questions.`}
 
 ${historyText ? `Our previous conversation about this content:\n${historyText}\n` : ''}
 
 User's request: ${prompt}
 
-When suggesting improvements:
-1. Format each option clearly with "Option 1:", "Option 2:", etc.
-2. Present each option in a way that's ready to be implemented directly
-3. Use proper HTML formatting for each option
-4. For multiple suggestions, structure your response like this:
+IMPORTANT INSTRUCTIONS:
+1. Don't ask questions - provide immediate improvements
+2. Format each option clearly with "Option 1:", "Option 2:", etc.
+3. Present each option ready to be implemented directly
+4. Use proper HTML formatting for each option
+5. For multiple suggestions, structure your response like this:
 
-I've come up with several options to improve this:
+I've improved the content. Here are options to implement:
 
 Option 1: [first option with proper HTML formatting]
 Option 2: [second option with proper HTML formatting]
 
-5. For single suggestions, use a clear heading "Suggested Content:" 
-6. After this heading, provide your suggested content with proper HTML formatting
-7. Use appropriate HTML tags like <p>, <h1>, <h2>, etc. to match the document's structure
-8. Focus on addressing the user's specific request`;
+Don't ask if the user wants changes - just provide them.`;
       } else {
         // Conversation mode with history awareness
         console.log('Using conversation mode prompt');
