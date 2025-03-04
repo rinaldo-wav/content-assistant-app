@@ -178,17 +178,31 @@ ${historyText ? `Our previous conversation about this content:\n${historyText}\n
 
 User's request: ${prompt}
 
-IMPORTANT INSTRUCTIONS:
+IMPORTANT HTML FORMATTING INSTRUCTIONS:
+1. Use clean, minimal HTML formatting with NO extra whitespace or line breaks
+2. Format your HTML like this: <h1>Headline</h1><p>First paragraph</p><p>Second paragraph</p>
+3. Use only these HTML tags:
+   - <h1>, <h2>, <h3> for headings
+   - <p> for paragraphs
+   - <ul> and <li> for unordered lists
+   - <ol> and <li> for ordered lists
+   - <strong> for bold text
+   - <em> for italicized text
+   - <a href="..."> for links
+4. DO NOT use <br> tags or extra spacing between elements
+5. DO NOT add any inline styling or classes
+6. Keep the HTML structure linear and straightforward
+
+When suggesting improvements:
 1. Don't ask questions - provide immediate improvements
 2. Format each option clearly with "Option 1:", "Option 2:", etc.
-3. Present each option ready to be implemented directly
-4. Use proper HTML formatting for each option
-5. For multiple suggestions, structure your response like this:
+3. Present each option ready to be implemented directly with proper HTML formatting as described above
+4. For multiple suggestions, structure your response like this:
 
 I've improved the content. Here are options to implement:
 
-Option 1: [first option with proper HTML formatting]
-Option 2: [second option with proper HTML formatting]
+Option 1: <h1>Improved Headline</h1><p>Improved first paragraph...</p>
+Option 2: <h1>Alternative Headline</h1><p>Alternative first paragraph...</p>
 
 Don't ask if the user wants changes - just provide them.`;
       } else {
