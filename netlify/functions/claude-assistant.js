@@ -40,6 +40,79 @@ function extractDocumentStructure(html) {
   return headings.join('\n');
 }
 
+// Helper function to estimate token count
+function estimateTokenCount(text) {
+  if (!text) return 0;
+  // A rough estimate: Claude tokens are roughly 4 characters per token on average
+  return Math.ceil(text.length / 4);
+}
+
+// Helper function to detect if content is likely to exceed token limits
+function willExceedTokenLimit(content, prompt, maxTokens = 100000) {
+  const contentTokens = estimateTokenCount(content);
+  const promptTokens = estimateTokenCount(prompt);
+  const totalEstimatedTokens = contentTokens + promptTokens;
+  
+  console.log(`Estimated tokens - Content: ${contentTokens}, Prompt: ${promptTokens}, Total: ${totalEstimatedTokens}`);
+  
+  return totalEstimatedTokens > maxTokens;
+}
+
+// Function to split large content into manageable chunks
+function splitContent(content, maxChunkSize = 8000) {
+  if (!content) return [''];
+  
+  // If content is already small enough, return as is
+  if (estimateTokenCount(content) <= maxChunkSize) {
+    return [content];
+  }
+  
+  // For plain text splitting (assumes your content is already plaintext after stripHtml)
+  const chunks = [];
+  const sentences = content.split(/(?<=[.!?])\s+/);
+  let currentChunk = '';
+  
+  for (let sentence of sentences) {
+    const potentialChunk = currentChunk + sentence + ' ';
+    if (estimateTokenCount(potentialChunk) <= maxChunkSize) {
+      currentChunk = potentialChunk;
+    } else {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+      }
+      // If a single sentence is too long, we need to split it further
+      if (estimateTokenCount(sentence) > maxChunkSize) {
+        const words = sentence.split(' ');
+        let wordChunk = '';
+        for (let word of words) {
+          const potentialWordChunk = wordChunk + word + ' ';
+          if (estimateTokenCount(potentialWordChunk) <= maxChunkSize) {
+            wordChunk = potentialWordChunk;
+          } else {
+            if (wordChunk) {
+              chunks.push(wordChunk.trim());
+            }
+            wordChunk = word + ' ';
+          }
+        }
+        if (wordChunk) {
+          currentChunk = wordChunk;
+        } else {
+          currentChunk = '';
+        }
+      } else {
+        currentChunk = sentence + ' ';
+      }
+    }
+  }
+  
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}
+
 exports.handler = async function(event, context) {
   // Enable CORS
   const headers = {
@@ -218,6 +291,53 @@ Here's the context:
 
 Respond conversationally as a helpful writing assistant, remembering the context of your previous conversation. Only provide specific content suggestions if directly asked.`;
       }
+
+// INSERT TOKEN CHECKING CODE RIGHT HERE, BETWEEN THESE SECTIONS
+      // Check if content might exceed token limits
+      const strippedContent = stripHtml(currentContent);
+      const selectedTextContent = selectedText ? stripHtml(selectedText) : '';
+      const contentToProcess = selectedText ? selectedTextContent : strippedContent;
+
+      // If this is flagged as potentially large content or actually is large
+      if (requestBody.isLargeContent || estimateTokenCount(contentToProcess) > 4000) {
+        console.log('Large content detected, checking token limits');
+        
+        // If we're likely to exceed token limits
+        if (willExceedTokenLimit(contentToProcess, prompt, 10000)) {
+          console.log('Content likely exceeds token limits, using chunking strategy');
+          
+          // For selected text operations, just warn if it's too big
+          if (selectedText && estimateTokenCount(selectedTextContent) > 8000) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({
+                error: 'Selected text too large',
+                message: 'The selected text is too large for AI processing. Please select a smaller portion of text.'
+              })
+            };
+          }
+          
+          // For whole document operations on large content
+          if (!selectedText && estimateTokenCount(strippedContent) > 8000) {
+            // Split content into chunks and process differently
+            const chunks = splitContent(strippedContent);
+            
+            // If we have multiple chunks, inform the user
+            if (chunks.length > 1) {
+              return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({
+                  error: 'Content too large',
+                  message: 'The document is too large to process all at once. Please select a specific section you want to work with.'
+                })
+              };
+            }
+          }
+        }
+      }
+      // END OF INSERTED CODE
       
       // Validate the model
       const model = "claude-3-7-sonnet-20250219";
