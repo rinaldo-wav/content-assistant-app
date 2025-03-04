@@ -319,32 +319,32 @@ ${historyText ? `Our previous conversation about this content:\n${historyText}\n
 User's request: ${prompt}
 
 IMPORTANT HTML FORMATTING INSTRUCTIONS:
-1. Use clean, minimal HTML formatting with NO extra whitespace or line breaks
-2. Format your HTML like this: <h1>Headline</h1><p>First paragraph</p><p>Second paragraph</p>
-3. Use only these HTML tags:
-   - <h1>, <h2>, <h3> for headings
+1. Return CLEAN, VALID HTML with NO extra whitespace, line breaks, or empty elements
+2. Format your HTML exactly like this: <h1>Headline</h1><p>First paragraph</p><p>Second paragraph</p>
+3. DO NOT include any <br> tags, especially not inside heading tags
+4. DO NOT create empty elements like <h1></h1> or <p></p>
+5. DO NOT duplicate HTML tags (e.g., never output "</p></p>" or "</h1></h1>")
+6. Use only these HTML tags:
+   - <h1>, <h2>, <h3> for headings (NEVER NESTED inside other tags)
    - <p> for paragraphs
    - <ul> and <li> for unordered lists
    - <ol> and <li> for ordered lists
    - <strong> for bold text
    - <em> for italicized text
    - <a href="..."> for links
-4. DO NOT use <br> tags or extra spacing between elements
-5. DO NOT add any inline styling or classes
-6. Keep the HTML structure linear and straightforward
+7. NEVER put headings inside paragraph tags
+8. DO NOT add any inline styling or classes
+9. DO NOT add HTML comments
+10. Keep the HTML structure simple and linear
 
 When suggesting improvements:
-1. Don't ask questions - provide immediate improvements
-2. Format each option clearly with "Option 1:", "Option 2:", etc.
-3. Present each option ready to be implemented directly with proper HTML formatting as described above
-4. For multiple suggestions, structure your response like this:
+1. For headline replacements, output JUST <h1>New Headline</h1> with NO extra tags
+2. For paragraph replacements, use proper <p>New paragraph content</p> tags
+3. Format each option clearly with "Option 1:", "Option 2:", etc.
+4. When providing multiple options, ensure each option is complete, valid HTML
+5. For word or phrase replacements, do not wrap with unnecessary tags
 
-I've improved the content. Here are options to implement:
-
-Option 1: <h1>Improved Headline</h1><p>Improved first paragraph...</p>
-Option 2: <h1>Alternative Headline</h1><p>Alternative first paragraph...</p>
-
-Don't ask if the user wants changes - just provide them.`;
+CRITICAL: Test your HTML output to ensure there are no repeated phrases, fragments or duplicate tag closures.`;
       } else {
         // Conversation mode with history awareness
         console.log('Using conversation mode prompt');
