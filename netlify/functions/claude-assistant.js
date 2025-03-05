@@ -193,8 +193,8 @@ exports.handler = async function(event, context) {
   
   try {
     // Parse request body
-    const requestBody = JSON.parse(event.body);
-    const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent } = requestBody;
+const requestBody = JSON.parse(event.body);
+const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent, selectionRange } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
     
@@ -442,17 +442,18 @@ Respond conversationally as a helpful writing assistant, remembering the context
       }
       
       // Process and return the response
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          message: response.data.content[0].text,
-          original: {
-            fullContent: currentContent,
-            selectedText: selectedText || null
-          }
-        })
-      };
+return {
+  statusCode: 200,
+  headers,
+  body: JSON.stringify({
+    message: response.data.content[0].text,
+    original: {
+      fullContent: currentContent,
+      selectedText: selectedText || null,
+      selectionRange: selectionRange || null
+    }
+  })
+};
     } catch (apiError) {
       // Detailed error logging
       console.error('Error from API:', apiError.message);
