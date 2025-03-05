@@ -303,6 +303,10 @@ ${stripHtml(selectedText)}
 """
 
 Your task is to IMMEDIATELY improve this text without asking questions.
+CRITICAL: When replacing text, MAINTAIN THE EXACT SAME HTML STRUCTURE as the original.
+If the selection is a heading, return a heading. If it's a paragraph, return a paragraph.
+If it's just a phrase, do not wrap it in any tags.
+
 The selected text is part of this larger document:
 """
 ${strippedContent}
