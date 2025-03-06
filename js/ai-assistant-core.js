@@ -602,8 +602,14 @@ async function handleRegularMessage(message) {
   // Remove typing indicator
   removeTypingIndicator();
   
-  // Display the response in the chat with all required parameters
-  addMessage(response.message, false, response.suggestedContent, response.originalContent, response.mode || 'content');
+  // Format the response to hide markup tags
+  const formattedMessage = formatResponseForDisplay(response.message);
+  
+  // Display the formatted response in the chat
+  addMessage(formattedMessage, false, response.suggestedContent, response.originalContent, response.mode || 'content');
+  
+  // Store original message in history for context
+  addToHistory(response.message, 'assistant');
   
   // Process the response with our handler if it contains suggestions
   if (response.suggestedContent && window.aiHandler) {
@@ -1324,6 +1330,55 @@ function addMultipleOptionsUI(messageElement, options, originalContent) {
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
+
+/**
+ * Format AI response to hide markup tags
+ * Add this function to your ai-assistant-core.js file
+ */
+function formatResponseForDisplay(responseText) {
+  if (!responseText) return '';
+  
+  // Extract comment section
+  let commentText = '';
+  const commentMatch = responseText.match(/\[COMMENT\]([\s\S]*?)\[\/COMMENT\]/i);
+  if (commentMatch && commentMatch[1]) {
+    commentText = commentMatch[1].trim();
+  }
+  
+  // Extract options section
+  let optionsText = '';
+  const optionsMatch = responseText.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i);
+  if (optionsMatch && optionsMatch[1]) {
+    optionsText = optionsMatch[1].trim();
+  }
+  
+  // Extract rewrite section
+  let rewriteText = '';
+  const rewriteMatch = responseText.match(/\[REWRITE\]([\s\S]*?)\[\/REWRITE\]/i);
+  if (rewriteMatch && rewriteMatch[1]) {
+    rewriteText = rewriteMatch[1].trim();
+  }
+  
+  // Build a clean response
+  let formattedResponse = '';
+  
+  if (commentText) {
+    formattedResponse += commentText + '\n\n';
+  }
+  
+  if (optionsText) {
+    formattedResponse += 'Suggested Options:\n\n' + optionsText;
+  } else if (rewriteText) {
+    formattedResponse += rewriteText;
+  }
+  
+  // If no structured format was found, return the original text
+  if (!formattedResponse) {
+    return responseText;
+  }
+  
+  return formattedResponse;
+}
   
   /**
  * Extract suggested content from AI response
