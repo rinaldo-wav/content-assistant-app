@@ -268,12 +268,38 @@ function addRetryButton() {
 }
 
 /**
- * Initialize AI handler with better error handling
+ * Initialize AI handler with better error handling and visualizer checking
  */
 function initializeAIHandler() {
   console.log('Initializing AI Handler');
   
-  // Initial attempt
+  // Check if InlineChangeVisualizer is loaded
+  if (!window.InlineChangeVisualizer) {
+    console.error("InlineChangeVisualizer not found - inline changes won't work");
+    console.log("Attempting to load InlineChangeVisualizer from CDN...");
+    
+    // Create a script element to load the visualizer
+    const script = document.createElement('script');
+    script.src = 'https://lively-bombolone-92a577.netlify.app/js/inline-change-visualizer.js';
+    script.onload = function() {
+      console.log("InlineChangeVisualizer loaded from CDN");
+      // Try initializing again after script loads
+      if (window.editorQuill && window.SimpleAIHandler) {
+        try {
+          window.aiHandler = new SimpleAIHandler(window.editorQuill);
+          console.log("AI Handler initialized with Quill editor after loading visualizer");
+        } catch (e) {
+          console.error("Error initializing AI Handler:", e);
+        }
+      }
+    };
+    script.onerror = function() {
+      console.error("Failed to load InlineChangeVisualizer from CDN");
+    };
+    document.head.appendChild(script);
+  }
+  
+  // Initial attempt to initialize
   if (window.editorQuill && window.SimpleAIHandler) {
     try {
       window.aiHandler = new SimpleAIHandler(window.editorQuill);
@@ -324,6 +350,36 @@ function initializeAIHandler() {
   return false;
 }
 
+/**
+ * Load available assistants with retry mechanism
+ */
+async function loadAvailableAssistantsWithRetry(recordId, maxRetries = 3) {
+  let retryCount = 0;
+  let lastError = null;
+  
+  while (retryCount < maxRetries) {
+    try {
+      console.log(`Attempt ${retryCount + 1}/${maxRetries} to load assistants`);
+      const assistants = await loadAvailableAssistants(recordId);
+      return assistants;
+    } catch (error) {
+      lastError = error;
+      console.error(`Error loading assistants (attempt ${retryCount + 1}/${maxRetries}):`, error);
+      retryCount++;
+      
+      if (retryCount < maxRetries) {
+        // Exponential backoff
+        const delay = 1000 * Math.pow(2, retryCount - 1);
+        console.log(`Waiting ${delay}ms before next attempt`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // If we've exhausted retries, throw the last error
+  throw lastError || new Error('Failed to load assistants after maximum retries');
+}
+  
 /**
  * Load available assistants for the current content with improved error handling
  */
