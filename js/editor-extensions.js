@@ -1,10 +1,8 @@
 /**
- * Editor Extensions - Adds AI capabilities to the editor
+ * Improved Editor Extensions
  * 
- * This module is responsible for:
- * - Adding AI Assistant buttons for text selection
- * - Handling text selection in the editor
- * - Communicating with the AI Assistant
+ * Enhances the "Discuss with AI" and "Improve" buttons with more distinct functionality
+ * and support for specialized AI assistants.
  */
 
 (function() {
@@ -115,7 +113,7 @@
   }
   
   /**
-   * Create AI Assistant buttons
+   * Create AI Assistant buttons with enhanced labels
    */
   function createAIButtons() {
     // Remove existing buttons first to avoid duplicates
@@ -125,10 +123,10 @@
     if (existingDiscussButton) existingDiscussButton.remove();
     if (existingImproveButton) existingImproveButton.remove();
     
-    // Create Discuss button
+    // Create Discuss button (renamed to "Ask About")
     aiDiscussButton = document.createElement('button');
     aiDiscussButton.className = 'ai-assistant-button ai-discuss';
-    aiDiscussButton.textContent = 'Discuss with AI';
+    aiDiscussButton.textContent = 'Ask About';
     aiDiscussButton.style.display = 'none';
     
     // Create Improve button
@@ -148,7 +146,7 @@
   }
   
   /**
-   * Set up click handlers for AI buttons
+   * Set up click handlers for AI buttons with distinct behaviors
    */
   function setupButtonClickHandlers() {
     // Clear existing listeners if any (to prevent duplicates)
@@ -161,7 +159,7 @@
     aiDiscussButton = newDiscussButton;
     aiImproveButton = newImproveButton;
     
-    // Handle Discuss button click
+    // Handle Discuss button click - now "Ask About"
     aiDiscussButton.addEventListener('click', function() {
       const selectedText = aiDiscussButton.dataset.selectedText;
       let quillRange = null;
@@ -181,21 +179,21 @@
           // Scroll to AI assistant
           aiAssistant.scrollIntoView({ behavior: 'smooth' });
           
-          // Pre-populate message input
+          // Pre-populate message input with a question format
           const messageInput = aiAssistant.querySelector('.message-input');
           if (messageInput) {
-            messageInput.value = `Let's discuss how to improve this text`;
+            messageInput.value = `Can you explain this section: "${stripHtml(selectedText).substring(0, 50)}..."?`;
             messageInput.focus();
             
             // Simulate input event to adjust height
             messageInput.dispatchEvent(new Event('input', { bubbles: true }));
           }
           
-          // Send selection to AI Assistant
+          // Send selection to AI Assistant with discussion mode
           window.postMessage({
             type: 'selectedText',
             text: selectedText,
-            mode: 'discuss',
+            mode: 'ask',
             range: quillRange
           }, '*');
         } else {
@@ -208,7 +206,7 @@
       }
     });
     
-    // Handle Improve button click
+    // Handle Improve button click with contextual behavior
     aiImproveButton.addEventListener('click', function() {
       const selectedText = aiImproveButton.dataset.selectedText;
       let quillRange = null;
@@ -236,13 +234,30 @@
             range: quillRange
           }, '*');
           
-          // Auto-send improve request
+          // Auto-send improve request adapted to current AI Assistant
           const sendButton = aiAssistant.querySelector('.send-button');
           if (sendButton) {
-            // Set input text
+            // Set input text based on current assistant type
             const messageInput = aiAssistant.querySelector('.message-input');
             if (messageInput) {
-              messageInput.value = "Improve this text with specific suggestions";
+              // Get the current assistant type from the dropdown
+              const assistantDropdown = document.getElementById('assistant-dropdown');
+              const assistantName = assistantDropdown ? assistantDropdown.textContent.trim().toLowerCase() : '';
+              
+              // Customize message based on assistant type
+              let message = "Improve this text with specific suggestions";
+              
+              if (assistantName.includes('seo') || assistantName.includes('keyword')) {
+                message = "Optimize this text for SEO with better keywords";
+              } else if (assistantName.includes('proofread') || assistantName.includes('grammar')) {
+                message = "Fix any grammar and spelling issues in this text";
+              } else if (assistantName.includes('concise') || assistantName.includes('brevity')) {
+                message = "Make this text more concise while keeping key points";
+              } else if (assistantName.includes('tone') || assistantName.includes('voice')) {
+                message = "Improve the tone and voice of this text";
+              }
+              
+              messageInput.value = message;
               
               // Click send button
               setTimeout(() => {
@@ -262,6 +277,17 @@
     
     console.log('AI button handlers set up');
   }
+  
+  /**
+   * Strip HTML from text helper function
+   */
+  function stripHtml(html) {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  }
+  
+  // Rest of the file remains the same
   
   /**
    * Set up handlers for text selection in the editor
