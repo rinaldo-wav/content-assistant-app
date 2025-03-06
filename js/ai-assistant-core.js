@@ -37,99 +37,447 @@
   let assistantDescription;
   
   // Initialize when DOM is loaded
-  document.addEventListener('DOMContentLoaded', function() {
-    // Get DOM elements
-    chatContainer = document.getElementById('chat-container');
-    messageInput = document.getElementById('message-input');
-    sendButton = document.getElementById('send-button');
-    assistantDropdown = document.getElementById('assistant-dropdown');
-    assistantSelector = document.getElementById('assistant-selector');
-    assistantOptions = document.getElementById('assistant-options');
-    assistantDescription = document.getElementById('assistant-description');
+onDocumentReady(function() {
+  // Get DOM elements
+  chatContainer = document.getElementById('chat-container');
+  messageInput = document.getElementById('message-input');
+  sendButton = document.getElementById('send-button');
+  assistantDropdown = document.getElementById('assistant-dropdown');
+  assistantSelector = document.getElementById('assistant-selector');
+  assistantOptions = document.getElementById('assistant-options');
+  assistantDescription = document.getElementById('assistant-description');
+  
+  // Verify that required elements exist
+  const requiredElements = {
+    'chatContainer': chatContainer,
+    'messageInput': messageInput,
+    'sendButton': sendButton,
+    'assistantDropdown': assistantDropdown
+  };
+  
+  let missingElements = [];
+  for (const [name, element] of Object.entries(requiredElements)) {
+    if (!element) {
+      missingElements.push(name);
+    }
+  }
+  
+  if (missingElements.length > 0) {
+    console.error(`Required AI Assistant elements not found: ${missingElements.join(', ')}`);
     
-    if (!chatContainer || !messageInput || !sendButton) {
-      console.error("Required AI Assistant elements not found");
+    // Try again after a short delay to account for lazy loading
+    setTimeout(() => {
+      chatContainer = document.getElementById('chat-container');
+      messageInput = document.getElementById('message-input');
+      sendButton = document.getElementById('send-button');
+      assistantDropdown = document.getElementById('assistant-dropdown');
+      assistantSelector = document.getElementById('assistant-selector');
+      assistantOptions = document.getElementById('assistant-options');
+      assistantDescription = document.getElementById('assistant-description');
+      
+      // Check again
+      let stillMissing = [];
+      for (const [name, element] of Object.entries(requiredElements)) {
+        if (!element) {
+          stillMissing.push(name);
+        }
+      }
+      
+      if (stillMissing.length === 0) {
+        console.log('Required elements found after delay, initializing...');
+        initialize();
+      } else {
+        console.error(`Still missing elements after delay: ${stillMissing.join(', ')}`);
+        return;
+      }
+    }, 1000);
+    
+    return;
+  }
+  
+  // Initialize the assistant
+  initialize();
+});
+
+// Add a global error handler that will attempt recovery
+window.addEventListener('error', function(event) {
+  console.error('Global error caught:', event.error);
+  
+  // Only handle errors from our own scripts
+  const errorSource = event.filename || '';
+  if (errorSource.includes('ai-assistant-core.js') || 
+      errorSource.includes('ai-response-handler.js') ||
+      errorSource.includes('inline-change-visualizer.js')) {
+    
+    console.log('Error in AI assistant component, attempting recovery...');
+    
+    // Add a retry button if initialization has already happened
+    if (window.editorInitialized) {
+      addRetryButton();
+    }
+  }
+});
+  
+/**
+ * Modified initialize function for ai-assistant-core.js
+ * This improves robustness of the initialization process
+ */
+async function initialize() {
+  try {
+    console.log('Starting AI Assistant initialization');
+    
+    // Clear any previous error state
+    showLoadingState('Loading AI assistants...');
+    
+    // Get record ID from URL with fallback mechanism
+    recordId = getRecordIdFromUrl();
+    
+    if (!recordId) {
+      showError('No record ID found. Please ensure you are viewing a specific content item.');
       return;
     }
     
-    // Initialize the assistant
-    initialize();
-  });
-  
-  /**
-   * Main initialization function
-   */
-  async function initialize() {
+    console.log('Record ID found:', recordId);
+    
+    // Initialize AI handler if editor is ready with better error handling
+    initializeAIHandler();
+    
+    // Load assistants from Airtable with retry mechanism
+    let assistants = [];
     try {
-      // Get record ID from URL
-      recordId = getRecordIdFromUrl();
-      
-      if (!recordId) {
-        showError('No record ID found. Please ensure you are viewing a specific content item.');
-        return;
-      }
-      
-      // Initialize AI handler if editor is ready
-      if (window.editorQuill && window.SimpleAIHandler) {
-        try {
-          window.aiHandler = new SimpleAIHandler(window.editorQuill);
-          console.log("AI Handler initialized with Quill editor");
-        } catch (e) {
-          console.error("Error initializing AI Handler:", e);
-        }
-      } else {
-        console.log("Quill or SimpleAIHandler not available yet");
-        
-        // Set up a retry mechanism
-        const checkInterval = setInterval(() => {
-          if (window.editorQuill && window.SimpleAIHandler) {
-            try {
-              window.aiHandler = new SimpleAIHandler(window.editorQuill);
-              console.log("AI Handler initialized after retry");
-              clearInterval(checkInterval);
-            } catch (e) {
-              console.error("Error initializing AI Handler on retry:", e);
-            }
-          }
-        }, 1000);
-        
-        // Stop trying after 10 seconds
-        setTimeout(() => clearInterval(checkInterval), 10000);
-      }
-      
-      // Load assistants from Airtable
-      const assistants = await loadAvailableAssistants(recordId);
-      
-      if (assistants.length === 0) {
-        showError('No assistants are available for this content. Please link some assistants in Airtable.');
-        return;
-      }
-      
-      // Store the assistant list
-      assistantList = assistants;
-      
-      // Populate dropdown with available assistants
-      populateAssistantDropdown(assistants);
-      
-      // Enable the input
-      messageInput.disabled = false;
-      sendButton.disabled = false;
-      
-      // Set up event listeners
-      setupEventListeners();
-      
-      // Add test button if in development mode
-      if (window.location.hostname.includes('localhost') || 
-          window.location.hostname.includes('127.0.0.1') ||
-          window.location.search.includes('debug=true')) {
-        addTestButton();
-      }
-      
+      assistants = await loadAvailableAssistantsWithRetry(recordId, 3);
     } catch (error) {
-      console.error('Initialization error:', error);
-      showError('Failed to initialize the AI assistant. Please try refreshing the page.');
+      console.error('Failed to load assistants after retries:', error);
+      showError('Unable to connect to assistant service. Please refresh the page or try again later.');
+      return;
     }
+    
+    if (assistants.length === 0) {
+      showError('No assistants are available for this content. Please link some assistants in Airtable.');
+      return;
+    }
+    
+    // Store the assistant list
+    assistantList = assistants;
+    console.log('Loaded assistants:', assistantList.length);
+    
+    // Populate dropdown with available assistants
+    populateAssistantDropdown(assistants);
+    
+    // Enable the input
+    messageInput.disabled = false;
+    sendButton.disabled = false;
+    
+    // Set up event listeners
+    setupEventListeners();
+    
+    // Add test button if in development mode
+    if (window.location.hostname.includes('localhost') || 
+        window.location.hostname.includes('127.0.0.1') ||
+        window.location.search.includes('debug=true')) {
+      addTestButton();
+    }
+    
+    console.log('AI Assistant initialization completed successfully');
+    
+  } catch (error) {
+    console.error('Initialization error:', error);
+    showError('Failed to initialize the AI assistant. Please try refreshing the page.');
+    
+    // Add a retry button for user-initiated retry
+    addRetryButton();
   }
+}
+
+/**
+ * Show error with retry option
+ */
+function showError(message) {
+  const container = chatContainer || document.getElementById('chat-container');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="error-container">
+      <p style="color: #b91c1c; margin-bottom: 15px;">${message}</p>
+      <button id="retry-button" style="background-color: #109FCC; color: white; border: none; padding: 8px 16px; cursor: pointer;">
+        Retry Connection
+      </button>
+    </div>
+  `;
+  
+  // Update description
+  if (assistantDescription) {
+    assistantDescription.textContent = 'Connection error';
+  }
+  
+  // Update dropdown
+  if (assistantDropdown) {
+    assistantDropdown.textContent = 'No assistants available';
+  }
+  
+  // Add click handler to retry button
+  const retryButton = document.getElementById('retry-button');
+  if (retryButton) {
+    retryButton.addEventListener('click', function() {
+      initialize();
+    });
+  }
+}
+
+/**
+ * Show loading state
+ */
+function showLoadingState(message) {
+  const container = chatContainer || document.getElementById('chat-container');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <div>${message}</div>
+    </div>
+  `;
+}
+
+/**
+ * Add a manual retry button
+ */
+function addRetryButton() {
+  const container = document.querySelector('.assistant-container');
+  if (!container) return;
+  
+  const retryBtn = document.createElement('button');
+  retryBtn.textContent = 'Retry Connection';
+  retryBtn.style.backgroundColor = '#109FCC';
+  retryBtn.style.color = 'white';
+  retryBtn.style.border = 'none';
+  retryBtn.style.padding = '8px 12px';
+  retryBtn.style.marginTop = '10px';
+  retryBtn.style.cursor = 'pointer';
+  
+  retryBtn.onclick = function() {
+    initialize();
+  };
+  
+  // Insert at the top of the container
+  if (container.firstChild) {
+    container.insertBefore(retryBtn, container.firstChild);
+  } else {
+    container.appendChild(retryBtn);
+  }
+}
+
+/**
+ * Initialize AI handler with better error handling
+ */
+function initializeAIHandler() {
+  console.log('Initializing AI Handler');
+  
+  // Initial attempt
+  if (window.editorQuill && window.SimpleAIHandler) {
+    try {
+      window.aiHandler = new SimpleAIHandler(window.editorQuill);
+      console.log("AI Handler initialized with Quill editor");
+      return true;
+    } catch (e) {
+      console.error("Error initializing AI Handler:", e);
+    }
+  } else {
+    console.log("Quill or SimpleAIHandler not available yet, will retry");
+  }
+  
+  // Set up a more robust retry mechanism
+  let retryCount = 0;
+  const maxRetries = 5;
+  const retryDelay = 1000;
+  
+  const checkInterval = setInterval(() => {
+    retryCount++;
+    console.log(`Retry ${retryCount}/${maxRetries} for AI Handler initialization`);
+    
+    if (window.editorQuill && window.SimpleAIHandler) {
+      try {
+        window.aiHandler = new SimpleAIHandler(window.editorQuill);
+        console.log("AI Handler initialized after retry");
+        clearInterval(checkInterval);
+        return true;
+      } catch (e) {
+        console.error("Error initializing AI Handler on retry:", e);
+      }
+    }
+    
+    if (retryCount >= maxRetries) {
+      console.warn("Max retries reached for AI Handler initialization");
+      clearInterval(checkInterval);
+      return false;
+    }
+  }, retryDelay);
+  
+  // Stop trying after 10 seconds regardless
+  setTimeout(() => {
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      console.log("Stopped AI Handler initialization retries after timeout");
+    }
+  }, 10000);
+  
+  return false;
+}
+
+/**
+ * Load available assistants for the current content with improved error handling
+ */
+async function loadAvailableAssistants(recordId) {
+  try {
+    console.log(`Loading assistants for record ID: ${recordId}`);
+    
+    // First make a test request to verify API connectivity
+    try {
+      console.log('Testing Airtable API connectivity...');
+      const testResponse = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/Content?maxRecords=1`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+        }
+      });
+      
+      if (!testResponse.ok) {
+        throw new Error(`Airtable API test failed with status: ${testResponse.status}`);
+      }
+      
+      console.log('Airtable API connectivity confirmed');
+    } catch (testError) {
+      console.error('Airtable API connectivity test failed:', testError);
+      throw new Error('Cannot connect to Airtable API. Please check your internet connection and try again.');
+    }
+    
+    // Get content record with linked assistants
+    const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+      },
+      // Add timeout for fetch
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch content from Airtable: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    contentRecord = data;
+    
+    console.log('Content record fetched successfully');
+    
+    // Get the linked assistant IDs - use the correct field name with spaces
+    const linkedAssistantIds = data.fields['AI Assistants'] || [];
+    
+    if (linkedAssistantIds.length === 0) {
+      console.warn('No assistants linked to this content record');
+      return [];
+    }
+    
+    console.log(`Found ${linkedAssistantIds.length} linked assistants`);
+    
+    // Format the filter formula to get active assistants that are linked to this content
+    const filterFormula = `AND(Active=TRUE(),OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')}))`;
+    
+    // Get the linked assistants
+    const assistantsResponse = await fetch(
+      `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+        },
+        // Add timeout for fetch
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      }
+    );
+    
+    if (!assistantsResponse.ok) {
+      throw new Error(`Failed to fetch assistants from Airtable: ${assistantsResponse.status} ${assistantsResponse.statusText}`);
+    }
+    
+    const assistantsData = await assistantsResponse.json();
+    console.log(`Retrieved ${assistantsData.records.length} assistants from Airtable`);
+    
+    if (assistantsData.records.length === 0) {
+      // Try a simpler query as fallback
+      console.log('No active assistants found, trying fallback query...');
+      
+      // Just get any assistants linked to this content without the Active filter
+      const fallbackFormula = `OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
+      
+      const fallbackResponse = await fetch(
+        `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(fallbackFormula)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+          }
+        }
+      );
+      
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        console.log(`Fallback query found ${fallbackData.records.length} assistants`);
+        
+        if (fallbackData.records.length > 0) {
+          // Use these assistants even if they're not marked as active
+          return fallbackData.records;
+        }
+      }
+    }
+    
+    return assistantsData.records;
+    
+  } catch (error) {
+    console.error('Error loading assistants:', error);
+    throw error;
+  }
+}
+
+// Utility function to check if a DOM element exists and is visible
+function isElementReadyAndVisible(selector) {
+  const element = document.querySelector(selector);
+  if (!element) return false;
+  
+  const style = window.getComputedStyle(element);
+  return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+}
+
+// Document ready with fallbacks
+function onDocumentReady(callback) {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(callback, 1);
+  } else {
+    document.addEventListener('DOMContentLoaded', callback);
+    
+    // Fallback if DOMContentLoaded doesn't fire (e.g., in some Softr environments)
+    setTimeout(() => {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        callback();
+      }
+    }, 2000);
+  }
+}
+
+// Add window load event as another initialization trigger
+window.addEventListener('load', function() {
+  console.log('Window load event triggered');
+  
+  // If the chat container is still showing loading after the page has fully loaded,
+  // try initializing again
+  setTimeout(() => {
+    const container = document.getElementById('chat-container');
+    if (container && container.querySelector('.loading-container')) {
+      console.log('Chat still loading after window load, attempting re-initialization');
+      initialize();
+    }
+  }, 1500);
+});
   
   /**
    * Add a test button for debugging
