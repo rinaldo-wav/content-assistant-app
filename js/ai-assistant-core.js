@@ -40,7 +40,7 @@
   const CONFIG = {
     AIRTABLE_API_KEY: 'pat3BscwlarNjW9t4.e1284e5aec3b83f654a959380c8ce7bdaede00f0486ce085164e67e628189bfb',
     AIRTABLE_BASE_ID: 'apptv25rN4A3SoYn8',
-    API_ENDPOINT: 'https://lively-bombolone-92a577.netlify.app/.netlify/functions/claude-assistant',
+    API_ENDPOINT: 'https://lively-bombolone-92a577.netlify.app/.netlify/functions/ai-assistant',
     MAX_RETRY_ATTEMPTS: 3,
     RETRY_DELAY: 1000
   };
@@ -1107,7 +1107,7 @@ async function handleRegularMessage(message) {
 }
   
   /**
-   * Send message to Claude API via serverless function
+   * Send message to AI API via serverless function
    */
   async function sendToAI(message, assistant) {
     try {
