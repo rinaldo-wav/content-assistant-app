@@ -589,35 +589,35 @@
     addMessage(responseMessage, false);
   }
   
-  /**
-   * Handle regular message to AI
-   */
-  async function handleRegularMessage(message) {
-    // Show typing indicator
-    addTypingIndicator('thinking');
-    
-    // Get response from AI
-    const response = await sendToAI(message, currentAssistant);
-    
-    // Remove typing indicator
-    removeTypingIndicator();
-    
-    // Display the response in the chat
-    addMessage(response.message, false);
-    
-    // Process the response with our handler if it contains suggestions
-    if (response.suggestedContent && window.aiHandler) {
-      try {
-        window.aiHandler.processResponse(response, message);
-      } catch (e) {
-        console.error("Error processing response with handler:", e);
-      }
+ /**
+ * Handle regular message to AI
+ */
+async function handleRegularMessage(message) {
+  // Show typing indicator
+  addTypingIndicator('thinking');
+  
+  // Get response from AI
+  const response = await sendToAI(message, currentAssistant);
+  
+  // Remove typing indicator
+  removeTypingIndicator();
+  
+  // Display the response in the chat with all required parameters
+  addMessage(response.message, false, response.suggestedContent, response.originalContent, response.mode || 'content');
+  
+  // Process the response with our handler if it contains suggestions
+  if (response.suggestedContent && window.aiHandler) {
+    try {
+      window.aiHandler.processResponse(response, message);
+    } catch (e) {
+      console.error("Error processing response with handler:", e);
     }
-    
-    // Clear selection info
-    currentlySelectedText = null;
-    currentlySelectedRange = null;
   }
+  
+  // Clear selection info
+  currentlySelectedText = null;
+  currentlySelectedRange = null;
+}
   
   /**
    * Send message to Claude API via serverless function
@@ -1046,78 +1046,102 @@ This helps me provide more focused and reliable assistance.`,
   }
   
   /**
-   * Add UI for multiple options
-   */
-  function addMultipleOptionsUI(messageElement, options, originalContent) {
-    // Create a container for all options
-    const optionsContainer = document.createElement('div');
-    optionsContainer.className = 'all-options-container';
+ * Add UI for multiple options
+ */
+function addMultipleOptionsUI(messageElement, options, originalContent) {
+  console.log('Adding multiple options UI with', options.length, 'options');
+  
+  // Create a container for all options
+  const optionsContainer = document.createElement('div');
+  optionsContainer.className = 'all-options-container';
+  
+  options.forEach((option, index) => {
+    // Create a container for each option and its button
+    const optionContainer = document.createElement('div');
+    optionContainer.className = 'option-container';
+    optionContainer.style.margin = '10px 0 20px 0';
+    optionContainer.style.padding = '15px';
+    optionContainer.style.backgroundColor = '#f9fafb';
+    optionContainer.style.border = '1px solid #e5e5e5';
     
-    options.forEach((option, index) => {
-      // Create a container for each option and its button
-      const optionContainer = document.createElement('div');
-      optionContainer.className = 'option-container';
+    // Add option heading
+    const optionHeading = document.createElement('div');
+    optionHeading.style.fontWeight = '600';
+    optionHeading.style.marginTop = '0'; // Start at top of container
+    optionHeading.textContent = `Option ${index + 1}:`;
+    optionContainer.appendChild(optionHeading);
+    
+    // Add option content
+    const optionContent = document.createElement('div');
+    optionContent.className = 'option-content';
+    optionContent.style.margin = '10px 0';
+    optionContent.innerHTML = option;
+    optionContainer.appendChild(optionContent);
+    
+    // Add implementation button right below this option
+    const implementButton = document.createElement('button');
+    implementButton.classList.add('action-button');
+    implementButton.style.marginTop = '16px';
+    implementButton.style.padding = '8px 16px';
+    implementButton.style.backgroundColor = '#109FCC';
+    implementButton.style.color = 'white';
+    implementButton.style.border = 'none';
+    implementButton.style.cursor = 'pointer';
+    implementButton.style.fontFamily = 'Montserrat, sans-serif';
+    implementButton.style.fontSize = '13px';
+    implementButton.style.fontWeight = '500';
+    implementButton.style.display = 'inline-block';
+    implementButton.style.transition = 'background-color 0.2s';
+    implementButton.style.borderRadius = '0';
+    implementButton.textContent = `Implement Option ${index + 1}`;
+    
+    implementButton.addEventListener('click', async () => {
+      console.log(`Implement button clicked for option ${index + 1}`);
+      // Get the last user request before the options were presented
+      const userRequests = chatHistory.filter(msg => msg.role === 'user');
+      const relevantRequest = userRequests[userRequests.length - 2]?.content || '';
       
-      // Add option heading
-      const optionHeading = document.createElement('div');
-      optionHeading.style.fontWeight = '600';
-      optionHeading.style.marginTop = '0'; // Start at top of container
-      optionHeading.textContent = `Option ${index + 1}:`;
-      optionContainer.appendChild(optionHeading);
-      
-      // Add option content
-      const optionContent = document.createElement('div');
-      optionContent.className = 'option-content';
-      optionContent.innerHTML = option;
-      optionContainer.appendChild(optionContent);
-      
-      // Add implementation button right below this option
-      const implementButton = document.createElement('button');
-      implementButton.classList.add('action-button');
-      implementButton.style.margin = '10px 0 0 0';
-      implementButton.style.borderRadius = '0'; // Ensure no rounded corners
-      implementButton.textContent = `Implement Option ${index + 1}`;
-      
-      implementButton.addEventListener('click', async () => {
-        // Get the last user request before the options were presented
-        const userRequests = chatHistory.filter(msg => msg.role === 'user');
-        const relevantRequest = userRequests[userRequests.length - 2]?.content || '';
+      const success = await implementOption(options, index + 1, originalContent, relevantRequest);
+      if (success) {
+        // Add success message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'success-message';
+        successMessage.style.backgroundColor = '#f0fdf4';
+        successMessage.style.border = '1px solid #bbf7d0';
+        successMessage.style.padding = '12px 16px';
+        successMessage.style.marginTop = '10px';
+        successMessage.style.marginBottom = '0';
+        successMessage.style.display = 'flex';
+        successMessage.style.alignItems = 'center';
+        successMessage.style.gap = '8px';
+        successMessage.style.borderRadius = '0';
+        successMessage.innerHTML = `<span class="success-icon" style="color: #22c55e; font-weight: bold;">✓</span> Option ${index + 1} applied successfully!`;
+        optionContainer.appendChild(successMessage);
         
-        const success = await implementOption(options, index + 1, originalContent, relevantRequest);
-        if (success) {
-          // Add success message
-          const successMessage = document.createElement('div');
-          successMessage.className = 'success-message';
-          successMessage.style.marginTop = '10px';
-          successMessage.style.marginBottom = '0';
-          successMessage.style.borderRadius = '0'; // No rounded corners
-          successMessage.innerHTML = `<span class="success-icon">✓</span> Option ${index + 1} applied successfully!`;
-          optionContainer.appendChild(successMessage);
-          
-          // Hide all option buttons
-          optionsContainer.querySelectorAll('.action-button').forEach(btn => {
-            btn.style.display = 'none';
-          });
-        } else {
-          // Add failure message
-          const failureMessage = document.createElement('div');
-          failureMessage.style.color = 'red';
-          failureMessage.style.marginTop = '10px';
-          failureMessage.style.marginBottom = '0';
-          failureMessage.textContent = 'Failed to apply changes. Please try again.';
-          optionContainer.appendChild(failureMessage);
-        }
-      });
-      
-      optionContainer.appendChild(implementButton);
-      
-      // Add this option container to the main options container
-      optionsContainer.appendChild(optionContainer);
+        // Hide all option buttons
+        optionsContainer.querySelectorAll('.action-button').forEach(btn => {
+          btn.style.display = 'none';
+        });
+      } else {
+        // Add failure message
+        const failureMessage = document.createElement('div');
+        failureMessage.style.color = 'red';
+        failureMessage.style.marginTop = '10px';
+        failureMessage.style.marginBottom = '0';
+        failureMessage.textContent = 'Failed to apply changes. Please try again.';
+        optionContainer.appendChild(failureMessage);
+      }
     });
     
-    // Add all options container to the message
-    messageElement.appendChild(optionsContainer);
-  }
+    optionContainer.appendChild(implementButton);
+    
+    // Add this option container to the main options container
+    optionsContainer.appendChild(optionContainer);
+  });
+  
+  // Add all options container to the message
+  messageElement.appendChild(optionsContainer);
+}
   
   /**
    * Add UI for a single option
@@ -1302,190 +1326,213 @@ This helps me provide more focused and reliable assistance.`,
   }
   
   /**
-   * Extract suggested content from AI response
-   */
-  function extractSuggestedContent(responseMessage) {
-    if (!responseMessage) return null;
+ * Extract suggested content from AI response
+ */
+function extractSuggestedContent(responseMessage) {
+  if (!responseMessage) return null;
+  
+  try {
+    // Helper function to clean code block markers
+    function cleanCodeBlockMarkers(content) {
+      return content.replace(/```html\n/g, '').replace(/```\n/g, '').replace(/```/g, '');
+    }
     
-    try {
-      // Helper function to clean code block markers
-      function cleanCodeBlockMarkers(content) {
-        return content.replace(/```html\n/g, '').replace(/```\n/g, '').replace(/```/g, '');
-      }
+    // First priority: Look for [OPTIONS] and [REWRITE] structured format
+    const optionsBlock = responseMessage.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i);
+    if (optionsBlock) {
+      console.log('Found [OPTIONS] block in response');
+      const optionsContent = optionsBlock[1];
+      const formattedOptions = '<div class="suggestion-options">\n' + 
+        optionsContent.replace(/Option\s+(\d+):\s*([\s\S]*?)(?=Option\s+\d+:|$)/gi, 
+          (match, num, content) => `<div class="suggestion-option">
+            <h4>Option ${num}:</h4>
+            <div class="option-content">${sanitizeContent(content.trim())}</div>
+          </div>\n`
+        ) + '</div>';
       
-      // Check for Option 1, Option 2 format
-      const optionMatch = responseMessage.match(/Option\s+\d+\s*:/);
-      if (optionMatch) {
-        // Extract everything starting from the first option
-        const optionStartIndex = responseMessage.indexOf(optionMatch[0]);
-        let optionsContent = responseMessage.substring(optionStartIndex);
+      return formattedOptions;
+    }
+    
+    const rewriteMatch = responseMessage.match(/\[REWRITE\]([\s\S]*?)\[\/REWRITE\]/i);
+    if (rewriteMatch) {
+      console.log('Found [REWRITE] block in response');
+      return sanitizeContent(rewriteMatch[1].trim());
+    }
+    
+    // Check for Option 1, Option 2 format
+    const optionMatch = responseMessage.match(/Option\s+\d+\s*:/);
+    if (optionMatch) {
+      console.log('Found Option format in response');
+      // Extract everything starting from the first option
+      const optionStartIndex = responseMessage.indexOf(optionMatch[0]);
+      let optionsContent = responseMessage.substring(optionStartIndex);
+      
+      // Format the options with proper HTML
+      // Check if options have HTML tags
+      if (optionsContent.includes('<') && optionsContent.includes('>')) {
+        return sanitizeContent(optionsContent);
+      } else {
+        // Add a div wrapper for the options
+        let formattedOptions = '<div class="suggestion-options">\n';
         
-        // Format the options with proper HTML
-        // Check if options have HTML tags
-        if (optionsContent.includes('<') && optionsContent.includes('>')) {
-          return sanitizeContent(optionsContent);
-        } else {
-          // Add a div wrapper for the options
-          let formattedOptions = '<div class="suggestion-options">\n';
+        // Extract each option
+        const optionPattern = /Option\s+(\d+)\s*:([\s\S]*?)(?=(?:\s*Option\s+\d+\s*:)|$)/g;
+        let optionMatch;
+        let foundOptions = false;
+        
+        while ((optionMatch = optionPattern.exec(optionsContent)) !== null) {
+          foundOptions = true;
+          const optionNumber = optionMatch[1];
+          let optionContent = optionMatch[2].trim();
           
-          // Extract each option
-          const optionPattern = /Option\s+(\d+)\s*:([\s\S]*?)(?=(?:\s*Option\s+\d+\s*:)|$)/g;
-          let optionMatch;
-          let foundOptions = false;
+          // Clean code block markers
+          optionContent = cleanCodeBlockMarkers(optionContent);
           
-          while ((optionMatch = optionPattern.exec(optionsContent)) !== null) {
-            foundOptions = true;
-            const optionNumber = optionMatch[1];
-            let optionContent = optionMatch[2].trim();
-            
-            // Clean code block markers
-            optionContent = cleanCodeBlockMarkers(optionContent);
-            
-            // Convert to HTML if it looks like markdown
-            if (optionContent.startsWith('#') || 
-                (optionContent.includes('#') && !optionContent.includes('<'))) {
-              optionContent = convertMarkdownToHtml(optionContent);
-            }
-            // If it's not HTML already, wrap it in paragraph tags
-            else if (!optionContent.includes('<') && !optionContent.includes('>')) {
-              optionContent = `<p>${optionContent}</p>`;
-            }
-            
-            formattedOptions += `<div class="suggestion-option">
-              <h4>Option ${optionNumber}:</h4>
-              <div class="option-content">${optionContent}</div>
-            </div>\n`;
+          // Convert to HTML if it looks like markdown
+          if (optionContent.startsWith('#') || 
+              (optionContent.includes('#') && !optionContent.includes('<'))) {
+            optionContent = convertMarkdownToHtml(optionContent);
+          }
+          // If it's not HTML already, wrap it in paragraph tags
+          else if (!optionContent.includes('<') && !optionContent.includes('>')) {
+            optionContent = `<p>${optionContent}</p>`;
           }
           
-          formattedOptions += '</div>';
-          
-          if (foundOptions) {
-            return formattedOptions;
-          }
+          formattedOptions += `<div class="suggestion-option">
+            <h4>Option ${optionNumber}:</h4>
+            <div class="option-content">${optionContent}</div>
+          </div>\n`;
+        }
+        
+        formattedOptions += '</div>';
+        
+        if (foundOptions) {
+          return formattedOptions;
         }
       }
-      
-      // Check for structured format indicators
-      const rewriteMatch = responseMessage.match(/\[REWRITE\]([\s\S]*?)\[\/REWRITE\]/i);
-      if (rewriteMatch) {
-        return sanitizeContent(rewriteMatch[1].trim());
-      }
-      
-      const optionsBlock = responseMessage.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i);
-      if (optionsBlock) {
-        const optionsContent = optionsBlock[1];
-        const formattedOptions = '<div class="suggestion-options">\n' + 
-          optionsContent.replace(/Option\s+(\d+):\s*([\s\S]*?)(?=Option\s+\d+:|$)/gi, 
-            (match, num, content) => `<div class="suggestion-option">
-              <h4>Option ${num}:</h4>
-              <div class="option-content">${sanitizeContent(content.trim())}</div>
-            </div>\n`
-          ) + '</div>';
+    }
+    
+    // Look for content after "Suggested Content:" heading
+    if (responseMessage.includes('Suggested Content:')) {
+      console.log('Found Suggested Content section');
+      const parts = responseMessage.split('Suggested Content:');
+      if (parts.length > 1) {
+        let content = parts[1].trim();
         
-        return formattedOptions;
-      }
-      
-      // Look for content after "Suggested Content:" heading
-      if (responseMessage.includes('Suggested Content:')) {
-        const parts = responseMessage.split('Suggested Content:');
-        if (parts.length > 1) {
-          let content = parts[1].trim();
+        // Check if there are backticks in this section
+        const backtickMatch = content.match(/```([\s\S]*?)```/);
+        if (backtickMatch && backtickMatch.length > 1) {
+          // Extract content from backticks if present
+          let extractedContent = backtickMatch[1].trim();
           
-          // Check if there are backticks in this section
-          const backtickMatch = content.match(/```([\s\S]*?)```/);
-          if (backtickMatch && backtickMatch.length > 1) {
-            // Extract content from backticks if present
-            let extractedContent = backtickMatch[1].trim();
-            
-            // Clean code block markers
-            extractedContent = cleanCodeBlockMarkers(extractedContent);
-            
-            // If content might be markdown, convert it
-            if (extractedContent.startsWith('#') || 
-                (extractedContent.includes('#') && !extractedContent.includes('<'))) {
-              extractedContent = convertMarkdownToHtml(extractedContent);
-            }
-            // If it's not HTML already, wrap it in paragraph tags
-            else if (!extractedContent.includes('<') && !extractedContent.includes('>')) {
-              extractedContent = `<p>${extractedContent}</p>`;
-            }
-            
-            return sanitizeContent(extractedContent);
+          // Clean code block markers
+          extractedContent = cleanCodeBlockMarkers(extractedContent);
+          
+          // If content might be markdown, convert it
+          if (extractedContent.startsWith('#') || 
+              (extractedContent.includes('#') && !extractedContent.includes('<'))) {
+            extractedContent = convertMarkdownToHtml(extractedContent);
+          }
+          // If it's not HTML already, wrap it in paragraph tags
+          else if (!extractedContent.includes('<') && !extractedContent.includes('>')) {
+            extractedContent = `<p>${extractedContent}</p>`;
           }
           
-          // If no backticks, look for direct HTML content
-          if (content.includes('<') && content.includes('>')) {
-            // Look for the first HTML tag
-            const htmlStart = content.indexOf('<');
-            content = content.substring(htmlStart);
-            
-            // Clean code block markers
-            content = cleanCodeBlockMarkers(content);
-            
-            // If there's another heading after, only take content up to that heading
-            const nextHeadingMatch = content.match(/\n\s*([A-Z][A-Za-z\s]+:)/);
-            if (nextHeadingMatch && nextHeadingMatch.index) {
-              content = content.substring(0, nextHeadingMatch.index).trim();
-            }
-            
-            return sanitizeContent(content);
-          }
+          return sanitizeContent(extractedContent);
+        }
+        
+        // If no backticks, look for direct HTML content
+        if (content.includes('<') && content.includes('>')) {
+          // Look for the first HTML tag
+          const htmlStart = content.indexOf('<');
+          content = content.substring(htmlStart);
           
-          // If neither backticks nor HTML, just use the raw content
-          // If there's another heading or section, only take until that point
+          // Clean code block markers
+          content = cleanCodeBlockMarkers(content);
+          
+          // If there's another heading after, only take content up to that heading
           const nextHeadingMatch = content.match(/\n\s*([A-Z][A-Za-z\s]+:)/);
           if (nextHeadingMatch && nextHeadingMatch.index) {
             content = content.substring(0, nextHeadingMatch.index).trim();
           }
           
-          // Clean code block markers
-          content = cleanCodeBlockMarkers(content);
-          
-          // If content might be markdown, convert it
-          if (content.startsWith('#') || 
-              (content.includes('#') && !content.includes('<'))) {
-            content = convertMarkdownToHtml(content);
-          }
-          // If it's not HTML already, wrap it in paragraph tags
-          else if (!content.includes('<') && !content.includes('>')) {
-            content = `<p>${content}</p>`;
-          }
-          
           return sanitizeContent(content);
         }
-      }
-      
-      // Second priority: Look for content in backticks
-      const backtickMatches = [...responseMessage.matchAll(/```([\s\S]*?)```/g)];
-      if (backtickMatches && backtickMatches.length > 0) {
-        // Use the last backtick block (most likely to be the suggestion)
-        const lastMatch = backtickMatches[backtickMatches.length - 1];
-        let suggestedContent = lastMatch[1].trim();
         
-        // Clean code block markers
-        suggestedContent = cleanCodeBlockMarkers(suggestedContent);
-        
-        // Convert markdown to HTML if needed
-        if (suggestedContent.startsWith('#') || 
-            (suggestedContent.includes('#') && !suggestedContent.includes('<'))) {
-          suggestedContent = convertMarkdownToHtml(suggestedContent);
-        } 
-        // If it's not HTML already, wrap it in paragraph tags
-        else if (!suggestedContent.includes('<') && !suggestedContent.includes('>')) {
-          suggestedContent = `<p>${suggestedContent}</p>`;
+        // If neither backticks nor HTML, just use the raw content
+        // If there's another heading or section, only take until that point
+        const nextHeadingMatch = content.match(/\n\s*([A-Z][A-Za-z\s]+:)/);
+        if (nextHeadingMatch && nextHeadingMatch.index) {
+          content = content.substring(0, nextHeadingMatch.index).trim();
         }
         
-        return sanitizeContent(suggestedContent);
+        // Clean code block markers
+        content = cleanCodeBlockMarkers(content);
+        
+        // If content might be markdown, convert it
+        if (content.startsWith('#') || 
+            (content.includes('#') && !content.includes('<'))) {
+          content = convertMarkdownToHtml(content);
+        }
+        // If it's not HTML already, wrap it in paragraph tags
+        else if (!content.includes('<') && !content.includes('>')) {
+          content = `<p>${content}</p>`;
+        }
+        
+        return sanitizeContent(content);
+      }
+    }
+    
+    // Second priority: Look for content in backticks
+    const backtickMatches = [...responseMessage.matchAll(/```([\s\S]*?)```/g)];
+    if (backtickMatches && backtickMatches.length > 0) {
+      // Use the last backtick block (most likely to be the suggestion)
+      const lastMatch = backtickMatches[backtickMatches.length - 1];
+      let suggestedContent = lastMatch[1].trim();
+      
+      // Clean code block markers
+      suggestedContent = cleanCodeBlockMarkers(suggestedContent);
+      
+      // Convert markdown to HTML if needed
+      if (suggestedContent.startsWith('#') || 
+          (suggestedContent.includes('#') && !suggestedContent.includes('<'))) {
+        suggestedContent = convertMarkdownToHtml(suggestedContent);
+      } 
+      // If it's not HTML already, wrap it in paragraph tags
+      else if (!suggestedContent.includes('<') && !suggestedContent.includes('>')) {
+        suggestedContent = `<p>${suggestedContent}</p>`;
       }
       
-      // No suggestion patterns matched
-      return null;
-      
-    } catch (error) {
-      console.error('Error in extractSuggestedContent:', error);
-      return null;
+      return sanitizeContent(suggestedContent);
     }
+    
+    // No suggestion patterns matched, try using the entire response as content
+    if (responseMessage.includes('[COMMENT]') && responseMessage.includes('[/COMMENT]')) {
+      // The response has structure but no explicit content sections
+      // Try to use everything after [/COMMENT] as content
+      const commentEndIndex = responseMessage.indexOf('[/COMMENT]') + 10;
+      if (commentEndIndex < responseMessage.length) {
+        let remainingContent = responseMessage.substring(commentEndIndex).trim();
+        if (remainingContent) {
+          // Clean and format it
+          remainingContent = sanitizeContent(remainingContent);
+          if (!remainingContent.includes('<') && !remainingContent.includes('>')) {
+            remainingContent = `<p>${remainingContent}</p>`;
+          }
+          return remainingContent;
+        }
+      }
+    }
+    
+    // No suggestion patterns matched
+    console.log('No content patterns matched in response');
+    return null;
+    
+  } catch (error) {
+    console.error('Error in extractSuggestedContent:', error);
+    return null;
   }
+}
   
   /**
    * Helper function to clean and sanitize HTML content
