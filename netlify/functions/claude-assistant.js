@@ -174,6 +174,62 @@ function splitContent(content, maxChunkSize = 8000) {
   return chunks;
 }
 
+// Helper function to prepare prompt for content mode with structured format
+function preparePromptForContentMode(basePrompt, selectedText, requestType) {
+  let specialInstructions = `
+IMPORTANT RESPONSE FORMAT:
+Please structure your response like this:
+
+[COMMENT]
+Brief explanation of your changes or suggestions
+[/COMMENT]
+
+For multiple options:
+[OPTIONS]
+Option 1:
+Your first suggestion
+
+Option 2:
+Your second suggestion
+[/OPTIONS]
+
+For complete rewrites:
+[REWRITE]
+Your complete new version of the text
+[/REWRITE]
+
+Ensure all HTML tags are properly formatted and closed.
+`;
+
+  // Add specific instructions based on request type
+  if (/headline|title/i.test(requestType)) {
+    specialInstructions += `
+Focus on creating a compelling headline. Present your suggestion in proper HTML format.`;
+  } else if (/paragraph/i.test(requestType)) {
+    specialInstructions += `
+Focus on improving paragraph flow and clarity. Maintain the same general length.`;
+  } else if (/grammar|spelling/i.test(requestType)) {
+    specialInstructions += `
+Focus primarily on fixing grammar and spelling issues while preserving the original meaning.`;
+  } else if (/tone|voice/i.test(requestType)) {
+    specialInstructions += `
+Focus on adjusting the tone and voice while preserving the core content.`;
+  } else if (/seo/i.test(requestType)) {
+    specialInstructions += `
+Focus on optimizing content for search engines while maintaining readability.`;
+  } else if (/expand|longer/i.test(requestType)) {
+    specialInstructions += `
+Focus on expanding the content with relevant details while maintaining the original message.`;
+  } else if (/shorten|concise/i.test(requestType)) {
+    specialInstructions += `
+Focus on making the content more concise while preserving key points.`;
+  }
+  
+  return `${basePrompt}
+  
+${specialInstructions}`;
+}
+
 exports.handler = async function(event, context) {
   // Enable CORS
   const headers = {
@@ -193,8 +249,8 @@ exports.handler = async function(event, context) {
   
   try {
     // Parse request body
-const requestBody = JSON.parse(event.body);
-const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent, selectionRange } = requestBody;
+    const requestBody = JSON.parse(event.body);
+    const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent, selectionRange } = requestBody;
     
     console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
     
@@ -288,7 +344,8 @@ const { prompt, assistantType, recordId, selectedText, interactionMode, conversa
         // Content mode - focused on generating suggestions
         console.log('Using content mode prompt');
         
-        userPrompt = `I'm working on a document with the following detailed structure:
+        // Create base prompt
+        let basePrompt = `I'm working on a document with the following detailed structure:
 ${documentStructure}
 
 When making improvements:
@@ -339,16 +396,10 @@ IMPORTANT HTML FORMATTING INSTRUCTIONS:
 7. NEVER put headings inside paragraph tags
 8. DO NOT add any inline styling or classes
 9. DO NOT add HTML comments
-10. Keep the HTML structure simple and linear
+10. Keep the HTML structure simple and linear`;
 
-When suggesting improvements:
-1. For headline replacements, output JUST <h1>New Headline</h1> with NO extra tags
-2. For paragraph replacements, use proper <p>New paragraph content</p> tags
-3. Format each option clearly with "Option 1:", "Option 2:", etc.
-4. When providing multiple options, ensure each option is complete, valid HTML
-5. For word or phrase replacements, do not wrap with unnecessary tags
-
-CRITICAL: Test your HTML output to ensure there are no repeated phrases, fragments or duplicate tag closures.`;
+        // Add structured response format instructions based on request type
+        userPrompt = preparePromptForContentMode(basePrompt, selectedText, prompt);
       } else {
         // Conversation mode with history awareness
         console.log('Using conversation mode prompt');
@@ -446,18 +497,18 @@ Respond conversationally as a helpful writing assistant, remembering the context
       }
       
       // Process and return the response
-return {
-  statusCode: 200,
-  headers,
-  body: JSON.stringify({
-    message: response.data.content[0].text,
-    original: {
-      fullContent: currentContent,
-      selectedText: selectedText || null,
-      selectionRange: selectionRange || null
-    }
-  })
-};
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: response.data.content[0].text,
+          original: {
+            fullContent: currentContent,
+            selectedText: selectedText || null,
+            selectionRange: selectionRange || null
+          }
+        })
+      };
     } catch (apiError) {
       // Detailed error logging
       console.error('Error from API:', apiError.message);
