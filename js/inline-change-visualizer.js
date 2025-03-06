@@ -1,8 +1,8 @@
 /**
- * InlineChangeVisualizer
+ * Improved InlineChangeVisualizer
  * 
- * Provides inline visualization of AI suggested changes in the Quill editor
- * with color-coded additions and deletions and buttons to accept/reject changes.
+ * Enhances the visualization of AI suggested changes in the Quill editor
+ * with cleaner text styling and integration with the AI Assistant UI
  */
 
 window.InlineChangeVisualizer = class {
@@ -13,41 +13,51 @@ window.InlineChangeVisualizer = class {
     this.changeControls = null;
     this.applyCallback = null;
     this.rejectCallback = null;
+    this.messageElement = null; // Reference to AI message element
   }
 
   /**
-   * Show suggested changes directly in the editor
+   * Show suggested changes directly in the editor with cleaner styling
    * @param {Object} options Configuration options
    * @param {string} options.originalText Original text
    * @param {string} options.suggestedText Suggested text
    * @param {Object} options.range Quill range object {index, length}
    * @param {Function} options.onApply Callback when changes are applied
    * @param {Function} options.onReject Callback when changes are rejected
+   * @param {HTMLElement} options.messageElement The AI message element to add controls to
    */
   showChanges(options) {
     // Store the original content and range
     this.originalContent = options.originalText;
     this.originalRange = options.range || this.quill.getSelection();
+    this.messageElement = options.messageElement;
     
     if (!this.originalRange) {
       console.error("No range provided for change visualization");
       return;
     }
     
-    // Temporarily insert suggested content with custom colors
+    // Temporarily insert suggested content with cleaner styling (no brackets)
     this.quill.deleteText(this.originalRange.index, this.originalRange.length);
     
-    // Add styling for deletions (red) and additions (blue)
-    this.quill.insertText(this.originalRange.index, "⟦", { color: '#E30613', bold: true });
-    this.quill.insertText(this.originalRange.index + 1, options.originalText, { color: '#E30613', strike: true });
-    this.quill.insertText(this.originalRange.index + options.originalText.length + 1, "⟧", { color: '#E30613', bold: true });
+    // Add styling for deletions (red strikethrough) without brackets
+    this.quill.insertText(this.originalRange.index, options.originalText, { 
+      color: '#E30613', 
+      strike: true 
+    });
     
-    this.quill.insertText(this.originalRange.index + options.originalText.length + 2, " ⟦", { color: '#109FCC', bold: true });
-    this.quill.insertText(this.originalRange.index + options.originalText.length + 4, options.suggestedText, { color: '#109FCC' });
-    this.quill.insertText(this.originalRange.index + options.originalText.length + 4 + options.suggestedText.length, "⟧", { color: '#109FCC', bold: true });
+    // Add a space between deletion and addition
+    this.quill.insertText(this.originalRange.index + options.originalText.length, " ", {});
     
-    // Create and display controls
-    this.showChangeControls(options);
+    // Add styling for additions (blue) without brackets
+    this.quill.insertText(
+      this.originalRange.index + options.originalText.length + 1, 
+      options.suggestedText, 
+      { color: '#109FCC' }
+    );
+    
+    // Create and display controls in the AI Assistant message
+    this.showChangeControlsInAssistant(options);
     
     // Store callbacks
     this.applyCallback = options.onApply;
@@ -55,12 +65,57 @@ window.InlineChangeVisualizer = class {
   }
   
   /**
-   * Show controls for accepting/rejecting changes
+   * Show controls for accepting/rejecting changes in the AI Assistant message
    */
-  showChangeControls(options) {
+  showChangeControlsInAssistant(options) {
     // Remove existing controls if any
     this.removeChangeControls();
     
+    // If no message element is provided, fall back to the old behavior
+    if (!this.messageElement) {
+      return this.showChangeControls(options);
+    }
+    
+    // Create container for controls within the AI message
+    const controlsContainer = document.createElement('div');
+    controlsContainer.className = 'option-buttons';
+    controlsContainer.style.marginTop = '16px';
+    controlsContainer.style.display = 'flex';
+    controlsContainer.style.gap = '8px';
+    controlsContainer.style.flexWrap = 'wrap';
+    
+    // Create accept button
+    const acceptButton = document.createElement('button');
+    acceptButton.className = 'action-button';
+    acceptButton.style.backgroundColor = '#36AD34';  // Green
+    acceptButton.textContent = 'Accept Change';
+    
+    // Create reject button
+    const rejectButton = document.createElement('button');
+    rejectButton.className = 'action-button';
+    rejectButton.style.backgroundColor = '#f5f5f5';
+    rejectButton.style.color = '#333';
+    rejectButton.textContent = 'Reject';
+    
+    // Add click handlers
+    acceptButton.addEventListener('click', () => this.applyChanges(options.suggestedText));
+    rejectButton.addEventListener('click', () => this.rejectChanges());
+    
+    // Assemble controls
+    controlsContainer.appendChild(acceptButton);
+    controlsContainer.appendChild(rejectButton);
+    
+    // Add to AI Assistant message
+    this.messageElement.appendChild(controlsContainer);
+    
+    // Store reference to controls
+    this.changeControls = controlsContainer;
+  }
+  
+  /**
+   * Legacy method to show controls at the bottom (fallback)
+   */
+  showChangeControls(options) {
     // Create container for controls
     const controlsContainer = document.createElement('div');
     controlsContainer.className = 'change-controls';
@@ -122,8 +177,8 @@ window.InlineChangeVisualizer = class {
   applyChanges(suggestedText) {
     if (!this.originalRange) return;
     
-    // Calculate the length of visualization
-    const visualizationLength = this.originalContent.length * 2 + suggestedText.length + 6; // +6 for brackets
+    // Calculate the length of visualization (original + space + suggested)
+    const visualizationLength = this.originalContent.length + suggestedText.length + 1;
     
     // Delete the visualization
     this.quill.deleteText(this.originalRange.index, visualizationLength);
@@ -152,20 +207,35 @@ window.InlineChangeVisualizer = class {
   rejectChanges() {
     if (!this.originalRange || !this.originalContent) return;
     
-    // Calculate visualization length
-    const suggestedTextIndex = this.originalContent.length + 3; // Start after original text + brackets
-    let suggestedText = '';
+    // Calculate visualization length (original + space + suggested)
+    let visualizationLength = this.originalContent.length + 1; // Adding 1 for the space
     
+    // Get the suggested text length
+    let suggestedTextLength = 0;
     try {
-      suggestedText = this.quill.getText(
-        this.originalRange.index + suggestedTextIndex,
-        this.originalRange.length || 50
-      );
+      const suggestedTextStart = this.originalRange.index + this.originalContent.length + 1;
+      const remainingText = this.quill.getText(suggestedTextStart);
+      // Find where the blue text ends by checking for style changes
+      const blueTextFormat = this.quill.getFormat(suggestedTextStart);
+      
+      for (let i = 0; i < remainingText.length; i++) {
+        const currentFormat = this.quill.getFormat(suggestedTextStart + i);
+        if (currentFormat.color !== blueTextFormat.color) {
+          suggestedTextLength = i;
+          break;
+        }
+      }
+      
+      if (suggestedTextLength === 0) {
+        // If we couldn't determine the length, use a safer approach
+        suggestedTextLength = 100; // A reasonable default
+      }
     } catch (e) {
-      console.error("Error getting suggested text:", e);
+      console.error("Error getting suggested text length:", e);
+      suggestedTextLength = 100; // Fallback length
     }
     
-    const visualizationLength = this.originalContent.length * 2 + (suggestedText?.length || 0) + 6; // +6 for brackets
+    visualizationLength += suggestedTextLength;
     
     // Delete the visualization
     this.quill.deleteText(this.originalRange.index, visualizationLength);
