@@ -8,6 +8,33 @@
  * - Processing and displaying responses
  */
 
+// Add this at the VERY TOP of your ai-assistant-core.js file
+// This ensures the visualizer starts loading as early as possible
+
+// Preload the InlineChangeVisualizer
+(function preloadVisualizer() {
+  console.log("Preloading InlineChangeVisualizer...");
+  if (!window.InlineChangeVisualizer && !window.visualizerLoading) {
+    window.visualizerLoading = true;
+    
+    const script = document.createElement('script');
+    script.src = 'https://lively-bombolone-92a577.netlify.app/js/inline-change-visualizer.js';
+    script.async = false; // Make this synchronous for more predictable loading
+    
+    script.onload = function() {
+      console.log("InlineChangeVisualizer preloaded successfully");
+      window.visualizerLoaded = true;
+    };
+    
+    script.onerror = function() {
+      console.error("Failed to preload InlineChangeVisualizer");
+      window.visualizerLoading = false;
+    };
+    
+    document.head.appendChild(script);
+  }
+})();
+
 (function() {
   // Constants and configuration
   const CONFIG = {
@@ -119,8 +146,7 @@ window.addEventListener('error', function(event) {
 });
   
 /**
- * Modified initialize function for ai-assistant-core.js
- * This improves robustness of the initialization process
+ * Modified initialize function with proper sequencing
  */
 async function initialize() {
   try {
@@ -140,7 +166,9 @@ async function initialize() {
     console.log('Record ID found:', recordId);
     
     // Initialize AI handler if editor is ready with better error handling
-    initializeAIHandler();
+    // Wait for this to complete before proceeding
+    const handlerInitialized = await initializeAIHandler();
+    console.log("Handler initialization completed:", handlerInitialized);
     
     // Load assistants from Airtable with retry mechanism
     let assistants = [];
@@ -165,8 +193,8 @@ async function initialize() {
     populateAssistantDropdown(assistants);
     
     // Enable the input
-    messageInput.disabled = false;
-    sendButton.disabled = false;
+    if (messageInput) messageInput.disabled = false;
+    if (sendButton) sendButton.disabled = false;
     
     // Set up event listeners
     setupEventListeners();
@@ -268,51 +296,100 @@ function addRetryButton() {
 }
 
 /**
- * Initialize AI handler with better error handling and visualizer checking
+ * Initialize AI handler with improved visualizer handling
  */
 function initializeAIHandler() {
-  console.log('Initializing AI Handler');
-  
-  // Check if InlineChangeVisualizer is loaded
-  if (!window.InlineChangeVisualizer) {
-    console.error("InlineChangeVisualizer not found - inline changes won't work");
-    console.log("Attempting to load InlineChangeVisualizer from CDN...");
+  return new Promise((resolve) => {
+    console.log('Initializing AI Handler');
     
-    // Create a script element to load the visualizer
-    const script = document.createElement('script');
-    script.src = 'https://lively-bombolone-92a577.netlify.app/js/inline-change-visualizer.js';
-    script.onload = function() {
-      console.log("InlineChangeVisualizer loaded from CDN");
-      // Try initializing again after script loads
+    // Function to attempt handler creation
+    const createHandler = () => {
       if (window.editorQuill && window.SimpleAIHandler) {
         try {
+          // Check if visualizer is available
+          if (window.InlineChangeVisualizer) {
+            console.log("InlineChangeVisualizer found, creating handler");
+          } else {
+            console.warn("InlineChangeVisualizer still not available");
+          }
+          
           window.aiHandler = new SimpleAIHandler(window.editorQuill);
-          console.log("AI Handler initialized with Quill editor after loading visualizer");
+          console.log("AI Handler initialized with Quill editor");
+          resolve(true);
+          return true;
         } catch (e) {
           console.error("Error initializing AI Handler:", e);
         }
       }
+      return false;
     };
-    script.onerror = function() {
-      console.error("Failed to load InlineChangeVisualizer from CDN");
-    };
-    document.head.appendChild(script);
-  }
-  
-  // Initial attempt to initialize
-  if (window.editorQuill && window.SimpleAIHandler) {
-    try {
-      window.aiHandler = new SimpleAIHandler(window.editorQuill);
-      console.log("AI Handler initialized with Quill editor");
-      return true;
-    } catch (e) {
-      console.error("Error initializing AI Handler:", e);
+    
+    // First, check if we need to load the visualizer
+    if (!window.InlineChangeVisualizer && !window.visualizerLoading) {
+      console.log("InlineChangeVisualizer not loaded, loading from CDN...");
+      
+      // Set the flag to prevent multiple loads
+      window.visualizerLoading = true;
+      
+      const script = document.createElement('script');
+      script.src = 'https://lively-bombolone-92a577.netlify.app/js/inline-change-visualizer.js';
+      
+      script.onload = function() {
+        console.log("InlineChangeVisualizer loaded from CDN");
+        window.visualizerLoaded = true;
+        
+        // Wait a moment for the script to initialize
+        setTimeout(() => {
+          if (!createHandler()) {
+            setupRetry(resolve);
+          }
+        }, 300);
+      };
+      
+      script.onerror = function() {
+        console.error("Failed to load InlineChangeVisualizer from CDN");
+        window.visualizerLoading = false;
+        
+        // Try to initialize handler anyway, but it won't have visualization capabilities
+        if (!createHandler()) {
+          setupRetry(resolve);
+        }
+      };
+      
+      document.head.appendChild(script);
     }
-  } else {
-    console.log("Quill or SimpleAIHandler not available yet, will retry");
-  }
-  
-  // Set up a more robust retry mechanism
+    // If visualizer is already loaded or loading
+    else if (window.visualizerLoaded || window.visualizerLoading) {
+      console.log("InlineChangeVisualizer is already loading or loaded");
+      
+      // If we know it's loaded, try immediately
+      if (window.visualizerLoaded) {
+        if (!createHandler()) {
+          setupRetry(resolve);
+        }
+      }
+      // Otherwise, wait a bit for it to finish loading
+      else {
+        setTimeout(() => {
+          if (!createHandler()) {
+            setupRetry(resolve);
+          }
+        }, 500);
+      }
+    }
+    // If the visualizer isn't available and we can't load it
+    else {
+      console.warn("Unable to load InlineChangeVisualizer, proceeding without visualization");
+      
+      if (!createHandler()) {
+        setupRetry(resolve);
+      }
+    }
+  });
+}
+
+// Helper function to set up retry mechanism
+function setupRetry(resolveFunction) {
   let retryCount = 0;
   const maxRetries = 5;
   const retryDelay = 1000;
@@ -326,7 +403,8 @@ function initializeAIHandler() {
         window.aiHandler = new SimpleAIHandler(window.editorQuill);
         console.log("AI Handler initialized after retry");
         clearInterval(checkInterval);
-        return true;
+        resolveFunction(true);
+        return;
       } catch (e) {
         console.error("Error initializing AI Handler on retry:", e);
       }
@@ -335,7 +413,7 @@ function initializeAIHandler() {
     if (retryCount >= maxRetries) {
       console.warn("Max retries reached for AI Handler initialization");
       clearInterval(checkInterval);
-      return false;
+      resolveFunction(false);
     }
   }, retryDelay);
   
@@ -344,10 +422,9 @@ function initializeAIHandler() {
     if (checkInterval) {
       clearInterval(checkInterval);
       console.log("Stopped AI Handler initialization retries after timeout");
+      resolveFunction(false);
     }
   }, 10000);
-  
-  return false;
 }
 
 /**
