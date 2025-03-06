@@ -1332,52 +1332,26 @@ function addMultipleOptionsUI(messageElement, options, originalContent) {
   }
 
 /**
- * Format AI response to hide markup tags
- * Add this function to your ai-assistant-core.js file
+ * Format AI response to hide markup tags but only show comments
  */
 function formatResponseForDisplay(responseText) {
   if (!responseText) return '';
   
-  // Extract comment section
+  // Extract only the comment section
   let commentText = '';
   const commentMatch = responseText.match(/\[COMMENT\]([\s\S]*?)\[\/COMMENT\]/i);
   if (commentMatch && commentMatch[1]) {
     commentText = commentMatch[1].trim();
+    return commentText; // Only return the comment text
   }
   
-  // Extract options section
-  let optionsText = '';
-  const optionsMatch = responseText.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i);
-  if (optionsMatch && optionsMatch[1]) {
-    optionsText = optionsMatch[1].trim();
-  }
-  
-  // Extract rewrite section
-  let rewriteText = '';
-  const rewriteMatch = responseText.match(/\[REWRITE\]([\s\S]*?)\[\/REWRITE\]/i);
-  if (rewriteMatch && rewriteMatch[1]) {
-    rewriteText = rewriteMatch[1].trim();
-  }
-  
-  // Build a clean response
-  let formattedResponse = '';
-  
-  if (commentText) {
-    formattedResponse += commentText + '\n\n';
-  }
-  
-  if (optionsText) {
-    formattedResponse += 'Suggested Options:\n\n' + optionsText;
-  } else if (rewriteText) {
-    formattedResponse += rewriteText;
-  }
-  
-  // If no structured format was found, return the original text
-  if (!formattedResponse) {
-    return responseText;
-  }
-  
-  return formattedResponse;
+  // If no comment section found, return a cleaned version of the original
+  // This removes all markup tags
+  return responseText
+    .replace(/\[COMMENT\]([\s\S]*?)\[\/COMMENT\]/gi, '')
+    .replace(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/gi, '')
+    .replace(/\[REWRITE\]([\s\S]*?)\[\/REWRITE\]/gi, '')
+    .trim();
 }
   
   /**
