@@ -504,13 +504,22 @@ if (assistantConfig.ModelID && assistantConfig.ModelID.length > 0) {
  * Helper function to prepare user prompt based on context
  */
 function prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode) {
+  // Add these debug logs
+  console.log('Preparing User Prompt Debug:', {
+    prompt,
+    selectedText: selectedText ? selectedText.substring(0, 100) : 'No selected text',
+    strippedContent: strippedContent ? strippedContent.substring(0, 100) : 'No content',
+    documentStructure,
+    interactionMode
+  });
+  
   // Safety checks for undefined values
   strippedContent = strippedContent || '';
   documentStructure = documentStructure || 'No document structure available';
   historyText = historyText || '';
   
   // Content mode - focused on generating suggestions
-  if (!interactionMode || interactionMode === 'content') {
+  ifif (interactionMode === 'content' || !interactionMode || selectedText) {
     // Base prompt with document structure
     let basePrompt = `I'm working on a document with the following detailed structure:
 ${documentStructure}
