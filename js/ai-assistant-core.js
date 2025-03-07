@@ -462,108 +462,37 @@ async function loadAvailableAssistants(recordId) {
   try {
     console.log(`Loading assistants for record ID: ${recordId}`);
     
-    // First make a test request to verify API connectivity
-    try {
-      console.log('Testing Airtable API connectivity...');
-      const testResponse = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content?maxRecords=1`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
-        }
-      });
-      
-      if (!testResponse.ok) {
-        throw new Error(`Airtable API test failed with status: ${testResponse.status}`);
-      }
-      
-      console.log('Airtable API connectivity confirmed');
-    } catch (testError) {
-      console.error('Airtable API connectivity test failed:', testError);
-      throw new Error('Cannot connect to Airtable API. Please check your internet connection and try again.');
-    }
+    // Use Netlify function as a proxy to Airtable
+    const proxyEndpoint = CONFIG.API_ENDPOINT.replace('ai-assistant', 'airtable-proxy');
+    console.log('Using proxy endpoint:', proxyEndpoint);
     
-    // Get content record with linked assistants
-    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
-      method: 'GET',
+    const response = await fetch(proxyEndpoint, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+        'Content-Type': 'application/json'
       },
-      // Add timeout for fetch
-      signal: AbortSignal.timeout(10000) // 10 second timeout
+      body: JSON.stringify({
+        operation: 'getAssistants',
+        recordId: recordId
+      })
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch content from Airtable: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch assistants: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    contentRecord = data;
     
-    console.log('Content record fetched successfully');
-    
-    // Get the linked assistant IDs - use the correct field name with spaces
-    const linkedAssistantIds = data.fields['AI Assistants'] || [];
-    
-    if (linkedAssistantIds.length === 0) {
-      console.warn('No assistants linked to this content record');
+    // If we get an empty response, try a fallback query
+    if (!data.records || data.records.length === 0) {
+      console.log('No active assistants found, trying fallback...');
+      
+      // We don't have linkedAssistantIds here, so we can't use a fallback query directly
+      // Instead, just return the empty result
       return [];
     }
     
-    console.log(`Found ${linkedAssistantIds.length} linked assistants`);
-    
-    // Format the filter formula to get active assistants that are linked to this content
-    const filterFormula = `AND(Active=TRUE(),OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')}))`;
-    
-    // Get the linked assistants
-    const assistantsResponse = await fetch(
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
-        },
-        // Add timeout for fetch
-        signal: AbortSignal.timeout(10000) // 10 second timeout
-      }
-    );
-    
-    if (!assistantsResponse.ok) {
-      throw new Error(`Failed to fetch assistants from Airtable: ${assistantsResponse.status} ${assistantsResponse.statusText}`);
-    }
-    
-    const assistantsData = await assistantsResponse.json();
-    console.log(`Retrieved ${assistantsData.records.length} assistants from Airtable`);
-    
-    if (assistantsData.records.length === 0) {
-      // Try a simpler query as fallback
-      console.log('No active assistants found, trying fallback query...');
-      
-      // Just get any assistants linked to this content without the Active filter
-      const fallbackFormula = `OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
-      
-      const fallbackResponse = await fetch(
-        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(fallbackFormula)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
-          }
-        }
-      );
-      
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        console.log(`Fallback query found ${fallbackData.records.length} assistants`);
-        
-        if (fallbackData.records.length > 0) {
-          // Use these assistants even if they're not marked as active
-          return fallbackData.records;
-        }
-      }
-    }
-    
-    return assistantsData.records;
-    
+    return data.records || [];
   } catch (error) {
     console.error('Error loading assistants:', error);
     throw error;
@@ -749,60 +678,6 @@ window.addEventListener('load', function() {
   console.log('Got record ID from URL:', recordId);
   return recordId;
 }
-  
-  /**
-   * Load available assistants for the current content
-   */
-  async function loadAvailableAssistants(recordId) {
-    try {
-      // Get content record with linked assistants
-      const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch content from Airtable');
-      }
-      
-      const data = await response.json();
-      contentRecord = data;
-      
-      // Get the linked assistant IDs - use the correct field name with spaces
-      const linkedAssistantIds = data.fields['AI Assistants'] || [];
-      
-      if (linkedAssistantIds.length === 0) {
-        return [];
-      }
-      
-      // Format the filter formula to get active assistants that are linked to this content
-      const filterFormula = `AND(Active=TRUE(),OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')}))`;
-      
-      // Get the linked assistants
-      const assistantsResponse = await fetch(
-        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
-          }
-        }
-      );
-      
-      if (!assistantsResponse.ok) {
-        throw new Error('Failed to fetch assistants from Airtable');
-      }
-      
-      const assistantsData = await assistantsResponse.json();
-      return assistantsData.records;
-      
-    } catch (error) {
-      console.error('Error loading assistants:', error);
-      throw error;
-    }
-  }
   
   /**
    * Populate the dropdown with available assistants
