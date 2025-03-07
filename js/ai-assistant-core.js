@@ -38,7 +38,7 @@
 (function() {
   // Constants and configuration
   const CONFIG = {
-    API_ENDPOINT: 'https://lively-bombolone-92a577.netlify.app/.netlify/functions/ai-assistant',
+    API_ENDPOINT: 'https://lively-bombolone-92a577.netlify.app/netlify/functions/ai-assistant',
     MAX_RETRY_ATTEMPTS: 3,
     RETRY_DELAY: 1000
   };
