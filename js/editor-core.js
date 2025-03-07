@@ -267,6 +267,7 @@ window.editorInitialized = false;
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'same-origin', // Match with your other fetch calls
         body: JSON.stringify({
           operation: 'updateContent',
           recordId: recordId,
@@ -302,41 +303,42 @@ window.editorInitialized = false;
   }
   
   /**
-   * Load content from Airtable
-   */
-  async function retrieveFromAirtable(quill) {
-    const recordId = getRecordIdFromUrl();
-    if (!recordId) {
-      displayMessage('Record ID not found in URL', 'error');
+ * Load content from Airtable
+ */
+async function retrieveFromAirtable(quill) {
+  const recordId = getRecordIdFromUrl();
+  if (!recordId) {
+    displayMessage('Record ID not found in URL', 'error');
+    return;
+  }
+  
+  try {
+    // Use our proxy function instead of direct Airtable API call
+    const response = await fetch(`https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'same-origin', // ADD THIS LINE
+      body: JSON.stringify({
+        operation: 'getContentRecord',
+        recordId: recordId
+      })
+    });
+    
+    if (!response.ok) {
+      displayMessage('Failed to load content', 'error');
       return;
     }
     
-    try {
-      // Use our proxy function instead of direct Airtable API call
-      const response = await fetch(`https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          operation: 'getContentRecord',
-          recordId: recordId
-        })
-      });
-      
-      if (!response.ok) {
-        displayMessage('Failed to load content', 'error');
-        return;
-      }
-      
-      const data = await response.json();
-      if (data && data.fields && data.fields.Content) {
-        quill.clipboard.dangerouslyPasteHTML(data.fields.Content);
-        updateWordCount(quill, document.getElementById('wordCount'));
-      }
-    } catch (error) {
-      console.error('Error loading content:', error);
-      displayMessage('Failed to load content', 'error');
+    const data = await response.json();
+    if (data && data.fields && data.fields.Content) {
+      quill.clipboard.dangerouslyPasteHTML(data.fields.Content);
+      updateWordCount(quill, document.getElementById('wordCount'));
     }
+  } catch (error) {
+    console.error('Error loading content:', error);
+    displayMessage('Failed to load content', 'error');
   }
+}
 })();

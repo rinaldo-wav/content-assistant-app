@@ -503,6 +503,7 @@ const proxyEndpoint = 'https://lively-bombolone-92a577.netlify.app/.netlify/func
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'same-origin', // Match with your other fetch calls
       body: JSON.stringify({
         operation: 'getAssistants',
         recordId: recordId
@@ -1117,7 +1118,10 @@ async function sendToAI(message, assistant) {
         'Content-Type': 'application/json',
         'Origin': window.location.origin
       },
-      credentials: 'include', // Added for potential cross-origin support
+      // Try one of these options:
+      credentials: 'same-origin', // Try this first
+      // OR
+      // credentials: 'omit', // If same-origin doesn't work
       body: JSON.stringify(payload)
     };
 
