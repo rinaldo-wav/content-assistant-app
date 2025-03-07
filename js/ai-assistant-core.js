@@ -42,6 +42,28 @@
     MAX_RETRY_ATTEMPTS: 3,
     RETRY_DELAY: 1000
   };
+
+  // Add the test function here
+async function testNetlifyConnection() {
+  try {
+    console.log('Testing connection to Netlify functions...');
+    const response = await fetch('https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      // Note: Removed credentials here for initial test
+      body: JSON.stringify({ operation: 'test' })
+    });
+    
+    const responseText = await response.text();
+    console.log('Test response:', responseText);
+    return response.ok;
+  } catch (error) {
+    console.error('Test connection failed:', error);
+    return false;
+  }
+}
   
   // Global state
   let currentAssistant = null;
@@ -150,6 +172,15 @@ async function initialize() {
   try {
     console.log('Starting AI Assistant initialization');
     
+    // Add this section to test connectivity first
+    const connectionTest = await testNetlifyConnection();
+    if (!connectionTest) {
+      console.warn('Initial connection test failed - proceeding anyway but expect issues');
+      // You could also choose to show an error and return early here
+    } else {
+      console.log('Connection test successful!');
+    }
+
     // Clear any previous error state
     showLoadingState('Loading AI assistants...');
     
@@ -463,7 +494,8 @@ async function loadAvailableAssistants(recordId) {
     console.log(`Loading assistants for record ID: ${recordId}`);
     
     // Use Netlify function as a proxy to Airtable
-    const proxyEndpoint = CONFIG.API_ENDPOINT.replace('ai-assistant', 'airtable-proxy');
+    // Use the full, absolute URL instead of replacing parts
+const proxyEndpoint = 'https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy';
     console.log('Using proxy endpoint:', proxyEndpoint);
     
     const response = await fetch(proxyEndpoint, {
