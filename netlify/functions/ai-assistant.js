@@ -554,10 +554,55 @@ async function getModelConfig(modelId) {
 
 // Function to get content record from Airtable
 async function getContentRecord(recordId) {
-  /* Existing implementation */
+  try {
+    const response = await axios.get(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.fields) {
+      throw new Error(`Could not retrieve content record ${recordId}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error getting content record:', error.message);
+    throw error;
+  }
 }
 
 // Function to fetch assistant configuration from Airtable
 async function getAssistantConfig(assistantKey, recordId) {
-  /* Existing implementation */
+  try {
+    // First get the content record to find linked assistants
+    console.log(`Fetching content record: ${recordId}`);
+    const contentResponse = await axios.get(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    // Rest of the function remains the same...
+    
+    // When fetching assistants:
+    const assistantsResponse = await axios.get(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${filterFormula}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
+        }
+      }
+    );
+    
+    // Rest of the code...
+  } catch (error) {
+    // Error handling...
+  }
 }
