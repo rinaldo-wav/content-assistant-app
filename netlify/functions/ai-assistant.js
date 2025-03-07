@@ -526,19 +526,32 @@ Respond conversationally as a helpful writing assistant, remembering the context
  * Get model configuration from Airtable
  */
 async function getModelConfig(modelId) {
+  console.log('Received modelId:', modelId);
+
+  // Provide a comprehensive default configuration
+  const defaultModelConfig = {
+    Type: 'claude',
+    API_Key: process.env.ANTHROPIC_API_KEY,
+    ModelName: 'claude-3-7-sonnet-20250219',
+    Temperature: 0.7,
+    MaxTokens: 4000,
+    Name: 'Default Claude Model'
+  };
+
+  // If no modelId is provided, return the default
   if (!modelId) {
-    console.log('No model ID provided, using default model');
-    // Return a default model configuration
-    return {
-      Type: 'claude',
-      API_Key: process.env.ANTHROPIC_API_KEY,
-      ModelName: 'claude-3-7-sonnet-20250219',
-      Temperature: 0.7,
-      MaxTokens: 4000
-    };
+    console.log('No model ID provided, using default model configuration');
+    return defaultModelConfig;
   }
-  
+
   try {
+    // Log the full Airtable request details
+    console.log('Attempting to fetch model from Airtable', {
+      baseId: process.env.AIRTABLE_BASE_ID,
+      modelId: modelId,
+      apiKeyPresent: !!process.env.AIRTABLE_API_KEY
+    });
+
     const response = await axios.get(
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Models/${modelId}`,
       {
@@ -547,12 +560,16 @@ async function getModelConfig(modelId) {
         }
       }
     );
-    
+
+    // Extensive logging of the response
+    console.log('Airtable Model Response:', JSON.stringify(response.data, null, 2));
+
     if (!response.data || !response.data.fields) {
-      throw new Error(`Could not retrieve model record ${modelId}`);
+      console.warn(`Could not retrieve model record ${modelId}, using default`);
+      return defaultModelConfig;
     }
-    
-    // Get the appropriate API key from environment variables
+
+    // Get the appropriate API key
     const modelType = response.data.fields.Type;
     let apiKey;
     
@@ -566,31 +583,26 @@ async function getModelConfig(modelId) {
       case 'mistral':
         apiKey = process.env.MISTRAL_API_KEY;
         break;
-      case 'deepseek':
-        apiKey = process.env.DEEPSEEK_API_KEY;
-        break;
-      case 'llama':
-        apiKey = process.env.LLAMA_API_KEY;
-        break;
       default:
         apiKey = process.env.ANTHROPIC_API_KEY;
     }
-    
-    // Return model configuration with API key
+
+    // Merge Airtable configuration with default configuration
     return {
+      ...defaultModelConfig,
       ...response.data.fields,
       API_Key: apiKey
     };
+
   } catch (error) {
-    console.error('Error getting model configuration:', error.message);
-    // Return default model if there's an error
-    return {
-      Type: 'claude',
-      API_Key: process.env.ANTHROPIC_API_KEY,
-      ModelName: 'claude-3-7-sonnet-20250219',
-      Temperature: 0.7,
-      MaxTokens: 4000
-    };
+    console.error('Error fetching model configuration:', {
+      message: error.message,
+      response: error.response ? error.response.data : 'No response',
+      stack: error.stack
+    });
+
+    // Return default configuration if fetch fails
+    return defaultModelConfig;
   }
 }
 

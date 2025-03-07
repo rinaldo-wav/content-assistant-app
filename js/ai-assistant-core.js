@@ -982,147 +982,164 @@ async function handleRegularMessage(message) {
 }
   
   /**
-   * Send message to AI API via serverless function
-   */
-  async function sendToAI(message, assistant) {
-    try {
-      // Add debug logging
-    console.log('Sending to AI with:', {
-      message,
-      assistant, // assistantType
-      recordId,
-      currentlySelectedText: !!currentlySelectedText // just log if it exists
+ * Send message to AI API via serverless function
+ */
+async function sendToAI(message, assistant) {
+  try {
+    // Comprehensive initial logging
+    console.log('AI Request Initialization:', {
+      message: message,
+      assistant: assistant,
+      recordId: recordId,
+      selectedTextPresent: !!currentlySelectedText,
+      selectedTextLength: currentlySelectedText ? currentlySelectedText.length : 0
     });
-      // Determine if this is a content request
-      const isContentRequest = detectContentRequest(message) || currentlySelectedText;
-      const mode = isContentRequest ? 'content' : 'conversation';
-      
-      // Check if this is potentially a large content operation
-      const isLargeContent = message.includes('whole piece') || 
-                            message.includes('expand') || 
-                            message.includes('rewrite') ||
-                            message.includes('longer') ||
-                            (currentlySelectedText && currentlySelectedText.length > 3000);
-      
-// Make sure we have required parameters
-if (!assistant) {
-  console.error('No assistant specified for API call');
-  return handleApiError(new Error('No assistant specified'));
-}
 
-if (!recordId) {
-  console.error('No recordId specified for API call');
-  return handleApiError(new Error('No record ID specified'));
-}
+    // Validate required parameters with more detailed error handling
+    if (!assistant) {
+      console.error('Critical Error: No assistant specified');
+      return handleApiError(new Error('No assistant specified for AI call'));
+    }
 
-      // Prepare payload with mode and history
-      const payload = {
-        prompt: message,
-        assistantType: assistant,
-        recordId: recordId,
-        interactionMode: mode,
-        conversationHistory: chatHistory,
-        actionOriented: true,
-        isLargeContent: isLargeContent
-      };
+    if (!recordId) {
+      console.error('Critical Error: No record ID available');
+      return handleApiError(new Error('No content record ID specified'));
+    }
+
+    // Determine request type and content characteristics
+    const isContentRequest = detectContentRequest(message) || currentlySelectedText;
+    const mode = isContentRequest ? 'content' : 'conversation';
+    
+    // Detect large content scenarios
+    const isLargeContent = message.includes('whole piece') || 
+                           message.includes('expand') || 
+                           message.includes('rewrite') ||
+                           message.includes('longer') ||
+                           (currentlySelectedText && currentlySelectedText.length > 3000);
+
+    // Prepare comprehensive payload
+    const payload = {
+      prompt: message,
+      assistantType: assistant,
+      recordId: recordId,
+      interactionMode: mode,
+      conversationHistory: chatHistory || [],
+      actionOriented: true,
+      isLargeContent: isLargeContent
+    };
+
+    // Enhanced selected text handling
+    if (currentlySelectedText) {
+      payload.selectedText = currentlySelectedText;
+      payload.interactionMode = 'content'; // Force content mode
       
-      // If we have selected text, include it
-      if (currentlySelectedText) {
-        payload.selectedText = currentlySelectedText;
-        // Force content mode when there's selected text
-        payload.interactionMode = 'content';
-        
-        // Include range information if available
-        if (currentlySelectedRange && 
-            !isNaN(currentlySelectedRange.index) && 
-            !isNaN(currentlySelectedRange.length)) {
-          payload.selectionRange = currentlySelectedRange;
-        }
+      // Robust range information inclusion
+      if (currentlySelectedRange && 
+          !isNaN(currentlySelectedRange.index) && 
+          !isNaN(currentlySelectedRange.length)) {
+        payload.selectionRange = {
+          index: currentlySelectedRange.index,
+          length: currentlySelectedRange.length
+        };
       }
-      
-      // Proactively check content size before sending
-      if (currentlySelectedText && currentlySelectedText.length > 15000) {
+    }
+
+    // Content size validation
+    if (currentlySelectedText) {
+      if (currentlySelectedText.length > 15000) {
         return {
-          message: `The selected text (${Math.round(currentlySelectedText.length/1000)}KB) is too large for me to process effectively. Please select a smaller portion of text - ideally a single paragraph or section at a time.`,
+          message: `The selected text (${Math.round(currentlySelectedText.length/1000)}KB) is too large. Please select a smaller portion.`,
           suggestedContent: null,
           mode: 'conversation',
           errorType: 'content_too_large'
         };
       }
-      
-      // For full content operations, warn about document size
-      if (message.includes('whole piece') || 
-          message.includes('entire document') || 
-          message.includes('complete text')) {
-        
-        try {
-          // Attempt to get document size
-          const editorElement = document.querySelector('.ql-editor');
-          if (editorElement && editorElement.innerHTML.length > 20000) {
-            return {
-              message: `Your document (${Math.round(editorElement.innerHTML.length/1000)}KB) is quite large, and I might not be able to process it all at once. To ensure the best results, please:
-              
-1. Select a specific section you'd like me to work on
-2. Ask about a particular paragraph or heading
-3. Break your request into smaller parts
+    }
 
-This helps me provide more focused and reliable assistance.`,
-              suggestedContent: null,
-              mode: 'conversation',
-              errorType: 'document_too_large'
-            };
-          }
-        } catch (e) {
-          console.error('Error checking document size:', e);
+    // Document size warning for comprehensive operations
+    if (message.includes('whole piece') || 
+        message.includes('entire document') || 
+        message.includes('complete text')) {
+      try {
+        const editorElement = document.querySelector('.ql-editor');
+        if (editorElement && editorElement.innerHTML.length > 20000) {
+          return {
+            message: `Document size (${Math.round(editorElement.innerHTML.length/1000)}KB) is too large. Please:
+1. Select a specific section
+2. Ask about a particular paragraph
+3. Break your request into smaller parts`,
+            suggestedContent: null,
+            mode: 'conversation',
+            errorType: 'document_too_large'
+          };
         }
+      } catch (sizeCheckError) {
+        console.error('Document size check error:', sizeCheckError);
       }
-      
-      // Make the API call with retry logic
-    const response = await fetch(CONFIG.API_ENDPOINT, {
+    }
+
+    // Comprehensive API call with improved error handling
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Origin': window.location.origin
       },
+      credentials: 'include', // Added for potential cross-origin support
       body: JSON.stringify(payload)
-    });
-    
+    };
+
+    console.log('Sending Payload:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch(CONFIG.API_ENDPOINT, fetchOptions);
+
+    // Detailed error handling for non-OK responses
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('API error response:', response.status, errorText);
-      throw new Error(`API responded with status: ${response.status}. ${errorText}`);
+      console.error('Detailed API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorBody: errorText
+      });
+      throw new Error(`API Error: ${response.status} - ${errorText}`);
     }
-    
+
     const data = await response.json();
-      
-      // After receiving response, reset selected text
-      currentlySelectedText = null;
-      
-      // Store in chat history for context
-      addToHistory(message, 'user');
-      if (data.message) {
-        addToHistory(data.message, 'assistant');
-      }
-      
-      // Only try to extract content if this was a content request
-      let suggestedContent = null;
-      if (mode === 'content') {
-        suggestedContent = extractSuggestedContent(data.message);
-      }
-      
-      return {
-        message: data.message,
-        suggestedContent: suggestedContent,
-        originalContent: data.original || {},
-        mode: mode
-      };
-    } catch (error) {
-      console.error('Error calling AI API:', error);
-      
-      // Use the error handler for consistent messaging
-      return handleApiError(error);
+    console.log('API Response:', JSON.stringify(data, null, 2));
+
+    // Reset selected text
+    currentlySelectedText = null;
+
+    // Update conversation history
+    addToHistory(message, 'user');
+    if (data.message) {
+      addToHistory(data.message, 'assistant');
     }
+
+    // Content extraction for content mode
+    let suggestedContent = null;
+    if (mode === 'content') {
+      suggestedContent = extractSuggestedContent(data.message);
+    }
+
+    return {
+      message: data.message,
+      suggestedContent: suggestedContent,
+      originalContent: data.original || {},
+      mode: mode
+    };
+
+  } catch (error) {
+    console.error('Comprehensive AI API Error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    // Use consistent error handling
+    return handleApiError(error);
   }
+}
   
   /**
    * Handle API errors with user-friendly messages
