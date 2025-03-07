@@ -245,26 +245,31 @@ window.editorInitialized = false;
    * Save content to Airtable
    */
   async function updateAirtableRecord(quill, statusElement) {
-    const recordId = getRecordIdFromUrl();
-    if (!recordId) {
-      displayMessage('Record ID not found in URL', 'error');
-      if (statusElement) updateSaveStatus(statusElement, 'save-error', 'Error: No Record ID');
-      return;
-    }
+    // Update this similarly to retrieveFromAirtable
+    // Use our proxy instead of direct Airtable API call
     
-    if (statusElement) updateSaveStatus(statusElement, 'saving', 'Saving...');
-    
-    const content = quill.root.innerHTML;
-    const wordCount = updateWordCount(quill, document.getElementById('wordCount'));
-    
+    // Example:
     try {
-      const response = await fetch(`https://api.airtable.com/v0/${EditorConfig.AIRTABLE_BASE_ID}/${EditorConfig.AIRTABLE_TABLE_NAME}/${recordId}`, {
-        method: 'PATCH',
+      const recordId = getRecordIdFromUrl();
+      if (!recordId) {
+        displayMessage('Record ID not found in URL', 'error');
+        if (statusElement) updateSaveStatus(statusElement, 'save-error', 'Error: No Record ID');
+        return;
+      }
+      
+      if (statusElement) updateSaveStatus(statusElement, 'saving', 'Saving...');
+      
+      const content = quill.root.innerHTML;
+      const wordCount = updateWordCount(quill, document.getElementById('wordCount'));
+      
+      const response = await fetch(`https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${EditorConfig.AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          operation: 'updateContent',
+          recordId: recordId,
           fields: {
             Content: content,
             Words: wordCount,
@@ -307,21 +312,27 @@ window.editorInitialized = false;
     }
     
     try {
-      const response = await fetch(`https://api.airtable.com/v0/${EditorConfig.AIRTABLE_BASE_ID}/${EditorConfig.AIRTABLE_TABLE_NAME}/${recordId}`, {
-        method: 'GET',
+      // Use our proxy function instead of direct Airtable API call
+      const response = await fetch(`https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${EditorConfig.AIRTABLE_API_KEY}`
-        }
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'getContentRecord',
+          recordId: recordId
+        })
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.fields && data.fields.Content) {
-          quill.clipboard.dangerouslyPasteHTML(data.fields.Content);
-          updateWordCount(quill, document.getElementById('wordCount'));
-        }
-      } else {
+      if (!response.ok) {
         displayMessage('Failed to load content', 'error');
+        return;
+      }
+      
+      const data = await response.json();
+      if (data && data.fields && data.fields.Content) {
+        quill.clipboard.dangerouslyPasteHTML(data.fields.Content);
+        updateWordCount(quill, document.getElementById('wordCount'));
       }
     } catch (error) {
       console.error('Error loading content:', error);

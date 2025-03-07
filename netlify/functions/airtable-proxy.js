@@ -36,6 +36,9 @@ exports.handler = async function(event, context) {
         
       case 'getAssistantsByFilter':
         return await getAssistantsByFilter(filterFormula, headers);
+
+      case 'updateContent':
+        return await updateContent(requestBody.recordId, requestBody.fields, headers);
         
       default:
         return {
@@ -170,6 +173,41 @@ async function getAssistantsByFilter(filterFormula, headers) {
       headers,
       body: JSON.stringify({ 
         error: 'Error fetching assistants by filter',
+        message: error.message
+      })
+    };
+  }
+}
+
+// Function to update content in Airtable
+async function updateContent(recordId, fields, headers) {
+  try {
+    const response = await axios.patch(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}`,
+      {
+        fields: fields
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(response.data)
+    };
+  } catch (error) {
+    console.error('Error updating content:', error);
+    
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Error updating content',
         message: error.message
       })
     };
