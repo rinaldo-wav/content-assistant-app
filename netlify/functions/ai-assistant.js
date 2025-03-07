@@ -121,6 +121,11 @@ class BaseModelProvider {
 class AnthropicModelProvider extends BaseModelProvider {
   async generateResponse(prompt, systemPrompt) {
     this.validateConfig();
+
+    // Add these debug lines
+  console.log('Generating response with prompt length:', prompt ? prompt.length : 0);
+  console.log('System prompt length:', systemPrompt ? systemPrompt.length : 0);
+  console.log('Prompt sample:', prompt ? prompt.substring(0, 50) + '...' : 'EMPTY PROMPT');
     
     const requestPayload = {
       model: this.modelConfig.ModelName || "claude-3-7-sonnet-20250219",
@@ -135,6 +140,9 @@ class AnthropicModelProvider extends BaseModelProvider {
       ]
     };
     
+    // Log the request payload
+  console.log('Anthropic request payload:', JSON.stringify(requestPayload));
+
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       requestPayload,
