@@ -986,6 +986,13 @@ async function handleRegularMessage(message) {
    */
   async function sendToAI(message, assistant) {
     try {
+      // Add debug logging
+    console.log('Sending to AI with:', {
+      message,
+      assistant, // assistantType
+      recordId,
+      currentlySelectedText: !!currentlySelectedText // just log if it exists
+    });
       // Determine if this is a content request
       const isContentRequest = detectContentRequest(message) || currentlySelectedText;
       const mode = isContentRequest ? 'content' : 'conversation';

@@ -298,11 +298,33 @@ exports.handler = async function(event, context) {
   }
   
   try {
-    // Parse request body
-    const requestBody = JSON.parse(event.body);
+    // Parse request body with more error handling
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body);
+      console.log('Received request with parameters:', {
+        assistantType: requestBody.assistantType,
+        recordId: requestBody.recordId
+      });
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+
     const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent, selectionRange, quickAction } = requestBody;
     
-    console.log(`Request received for ${assistantType} assistant, record ID: ${recordId}, mode: ${interactionMode || 'content'}`);
+    // More detailed validation
+    if (!assistantType) {
+      console.error('Missing assistantType parameter');
+    }
+    
+    if (!recordId) {
+      console.error('Missing recordId parameter');
+    }
     
     if (!assistantType || !recordId) {
       return {
@@ -557,7 +579,14 @@ async function getModelConfig(modelId) {
     };
   } catch (error) {
     console.error('Error getting model configuration:', error.message);
-    throw error;
+    // Return default model if there's an error
+    return {
+      Type: 'claude',
+      API_Key: process.env.ANTHROPIC_API_KEY,
+      ModelName: 'claude-3-7-sonnet-20250219',
+      Temperature: 0.7,
+      MaxTokens: 4000
+    };
   }
 }
 
@@ -598,11 +627,24 @@ async function getAssistantConfig(assistantKey, recordId) {
       }
     );
     
-    // Rest of the function remains the same...
+    if (!contentResponse.data || !contentResponse.data.fields) {
+      throw new Error(`Content record ${recordId} not found or has no fields`);
+    }
     
-    // When fetching assistants:
+    // Get the linked assistant IDs
+    const linkedAssistantIds = contentResponse.data.fields['AI Assistants'] || [];
+    console.log(`Content has ${linkedAssistantIds.length} linked assistants`);
+    
+    if (linkedAssistantIds.length === 0) {
+      return { SystemPrompt: "You are a helpful AI assistant." }; // Default config
+    }
+    
+    // Format the filter formula to find the requested assistant
+    const filterFormula = `Key="${assistantKey}"`;
+    
+    // Get the requested assistant by Key
     const assistantsResponse = await axios.get(
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${filterFormula}`,
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
       {
         headers: {
           'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
@@ -610,8 +652,15 @@ async function getAssistantConfig(assistantKey, recordId) {
       }
     );
     
-    // Rest of the code...
+    if (!assistantsResponse.data || !assistantsResponse.data.records || assistantsResponse.data.records.length === 0) {
+      console.warn(`Assistant with key "${assistantKey}" not found, using default`);
+      return { SystemPrompt: "You are a helpful AI assistant." }; // Default config
+    }
+    
+    return assistantsResponse.data.records[0].fields;
+    
   } catch (error) {
-    // Error handling...
+    console.error('Error getting assistant config:', error.message);
+    throw error;
   }
 }
