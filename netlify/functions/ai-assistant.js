@@ -1,11 +1,53 @@
 // netlify/functions/ai-assistant.js
 const axios = require('axios');
 
-// Helper function to strip HTML tags from content (unchanged)
-function stripHtml(html) { /* Existing implementation */ }
+/**
+ * Strip HTML tags from content
+ */
+function stripHtml(html) {
+  if (!html) return '';
+  // Simple regex-based HTML tag removal safe for Node.js environment
+  return String(html)
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
 
-// Helper function to extract document structure (unchanged)
-function extractDocumentStructure(html) { /* Existing implementation */ }
+/**
+ * Extract document structure info from HTML content
+ */
+function extractDocumentStructure(html) {
+  if (!html) return 'No content available';
+  
+  try {
+    // Count headings
+    const h1Count = (html.match(/<h1[^>]*>/g) || []).length;
+    const h2Count = (html.match(/<h2[^>]*>/g) || []).length;
+    const h3Count = (html.match(/<h3[^>]*>/g) || []).length;
+    
+    // Count paragraphs
+    const paragraphCount = (html.match(/<p[^>]*>/g) || []).length;
+    
+    // Count lists
+    const listItemCount = (html.match(/<li[^>]*>/g) || []).length;
+    const ulCount = (html.match(/<ul[^>]*>/g) || []).length;
+    const olCount = (html.match(/<ol[^>]*>/g) || []).length;
+    
+    return `Document structure:
+- ${h1Count} main headings (h1)
+- ${h2Count} subheadings (h2)
+- ${h3Count} section headings (h3)
+- ${paragraphCount} paragraphs
+- ${ulCount} unordered lists, ${olCount} ordered lists
+- ${listItemCount} total list items`;
+  } catch (error) {
+    console.error('Error analyzing document structure:', error);
+    return 'Unable to analyze document structure';
+  }
+}
 
 // Near the top of your ai-assistant.js file
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'apptv25rN4A3SoYn8';
@@ -330,6 +372,8 @@ exports.handler = async function(event, context) {
       };
     }
 
+    // Continue with the rest of your handler function...
+
     const { prompt, assistantType, recordId, selectedText, interactionMode, conversationHistory, isLargeContent, selectionRange, quickAction } = requestBody;
     
     // More detailed validation
@@ -452,6 +496,11 @@ if (assistantConfig.ModelID && assistantConfig.ModelID.length > 0) {
  * Helper function to prepare user prompt based on context
  */
 function prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode) {
+  // Safety checks for undefined values
+  strippedContent = strippedContent || '';
+  documentStructure = documentStructure || 'No document structure available';
+  historyText = historyText || '';
+  
   // Content mode - focused on generating suggestions
   if (!interactionMode || interactionMode === 'content') {
     // Base prompt with document structure
@@ -468,7 +517,7 @@ When making improvements:
     if (selectedText) {
       basePrompt += `\n\nThe user has selected this specific portion of text:
 """
-${stripHtml(selectedText)}
+${stripHtml(selectedText || '')}
 """
 
 Your task is to IMMEDIATELY improve this text without asking questions.
@@ -478,13 +527,13 @@ If it's just a phrase, do not wrap it in any tags.
 
 The selected text is part of this larger document:
 """
-${strippedContent.substring(0, 1000)}${strippedContent.length > 1000 ? '...' : ''}
+${strippedContent.substring(0, Math.min(1000, strippedContent.length))}${strippedContent.length > 1000 ? '...' : ''}
 """`;
     } else {
       basePrompt += `\n\nHere's the current content I'm working with:
         
 """
-${strippedContent.substring(0, 1000)}${strippedContent.length > 1000 ? '...' : ''}
+${strippedContent.substring(0, Math.min(1000, strippedContent.length))}${strippedContent.length > 1000 ? '...' : ''}
 """
 
 Your task is to IMMEDIATELY improve this content without asking questions.`;
@@ -526,7 +575,7 @@ Your task is to IMMEDIATELY improve this content without asking questions.`;
 
 ${historyText || ''}
 Here's the context:
-- The document they're working on: "${strippedContent.substring(0, 200)}${strippedContent.length > 200 ? '...' : ''}"
+- The document they're working on: "${strippedContent.substring(0, Math.min(200, strippedContent.length))}${strippedContent.length > 200 ? '...' : ''}"
 - Their current question/message: "${prompt}"
 
 Respond conversationally as a helpful writing assistant, remembering the context of your previous conversation. Only provide specific content suggestions if directly asked.`;
