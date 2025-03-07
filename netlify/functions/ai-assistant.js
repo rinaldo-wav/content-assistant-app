@@ -403,7 +403,7 @@ exports.handler = async function(event, context) {
     
     try {
       // Fetch assistant and model configurations from Airtable
-      const assistantConfig = await getAssistantConfig(assistantType, recordId);
+const assistantConfig = await getAssistantConfig(assistantType, recordId);
 // Add fallback for when ModelID doesn't exist
 let modelConfig;
 if (assistantConfig.ModelID && assistantConfig.ModelID.length > 0) {

@@ -844,6 +844,18 @@ window.addEventListener('load', function() {
   async function handleSendMessage() {
     const message = messageInput.value.trim();
     if (!message) return;
+
+    // Check for stored selection from editor buttons
+   const storedText = window.sessionStorage.getItem('selectedTextContent');
+   const selectionMode = window.sessionStorage.getItem('selectionMode');
+  
+  if (storedText && selectionMode) {
+    // Set the selection text for AI processing
+    currentlySelectedText = storedText;
+    // Clear storage after use
+    window.sessionStorage.removeItem('selectedTextContent');
+    window.sessionStorage.removeItem('selectionMode');
+  }
     
     // Clear input and reset height
     addMessage(message, true);

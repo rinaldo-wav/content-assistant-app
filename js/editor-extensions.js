@@ -261,6 +261,11 @@
               
               // Click send button
               setTimeout(() => {
+                // First store the text selection message in sessionStorage
+                window.sessionStorage.setItem('selectedTextContent', selectedText);
+                window.sessionStorage.setItem('selectionMode', 'improve');
+                
+                // Then click send
                 sendButton.click();
               }, 100);
             }
