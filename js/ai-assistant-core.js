@@ -1119,19 +1119,21 @@ async function sendToAI(message, assistant) {
       }
     }
 
-    // Comprehensive API call with improved error handling
+    // Modified fetch options - FIXES CORS ISSUE
     const fetchOptions = {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Content-Type': 'application/json'
+        // Remove Origin and other headers that might cause CORS issues
       },
-      // Try with 'omit' instead of any other option
+      // Use omit to prevent credentials CORS issues
       credentials: 'omit',
       body: JSON.stringify(payload)
     };
     
     console.log('Sending to AI with options:', fetchOptions);
+    
+    // Use a CORS-friendly approach
     const response = await fetch(CONFIG.API_ENDPOINT, fetchOptions);
 
     // Detailed error handling for non-OK responses
