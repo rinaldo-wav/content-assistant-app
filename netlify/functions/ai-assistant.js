@@ -7,6 +7,12 @@ function stripHtml(html) { /* Existing implementation */ }
 // Helper function to extract document structure (unchanged)
 function extractDocumentStructure(html) { /* Existing implementation */ }
 
+// Near the top of your ai-assistant.js file
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'apptv25rN4A3SoYn8';
+console.log('Using Airtable Base ID:', AIRTABLE_BASE_ID);
+
+// Then use AIRTABLE_BASE_ID instead of process.env.AIRTABLE_BASE_ID throughout
+
 /**
  * Model Provider Service Factory
  * Creates the appropriate service for the selected AI model
