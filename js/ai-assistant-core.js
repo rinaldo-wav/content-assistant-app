@@ -465,7 +465,7 @@ async function loadAvailableAssistants(recordId) {
     // First make a test request to verify API connectivity
     try {
       console.log('Testing Airtable API connectivity...');
-      const testResponse = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/Content?maxRecords=1`, {
+      const testResponse = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content?maxRecords=1`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
@@ -483,7 +483,7 @@ async function loadAvailableAssistants(recordId) {
     }
     
     // Get content record with linked assistants
-    const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
+    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
@@ -516,7 +516,7 @@ async function loadAvailableAssistants(recordId) {
     
     // Get the linked assistants
     const assistantsResponse = await fetch(
-      `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
       {
         method: 'GET',
         headers: {
@@ -542,7 +542,7 @@ async function loadAvailableAssistants(recordId) {
       const fallbackFormula = `OR(${linkedAssistantIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
       
       const fallbackResponse = await fetch(
-        `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(fallbackFormula)}`,
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(fallbackFormula)}`,
         {
           method: 'GET',
           headers: {
@@ -756,7 +756,7 @@ window.addEventListener('load', function() {
   async function loadAvailableAssistants(recordId) {
     try {
       // Get content record with linked assistants
-      const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
+      const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Content/${recordId}?`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
