@@ -9,8 +9,8 @@
 
 // Config
 const EditorConfig = {
-  AIRTABLE_API_KEY: 'pat3BscwlarNjW9t4.e1284e5aec3b83f654a959380c8ce7bdaede00f0486ce085164e67e628189bfb',
-  AIRTABLE_BASE_ID: 'apptv25rN4A3SoYn8',
+  AIRTABLE_API_KEY: '',  // Will be provided by the server
+  AIRTABLE_BASE_ID: '',  // Will be provided by the server
   AIRTABLE_TABLE_NAME: 'Content',
   AUTOSAVE_DELAY: 2000
 };
