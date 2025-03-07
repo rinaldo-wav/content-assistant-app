@@ -782,11 +782,11 @@ window.addEventListener('load', function() {
       
       // Get the linked assistants
       const assistantsResponse = await fetch(
-        `https://api.airtable.com/v0/${CONFIG.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/AI%20Assistants?filterByFormula=${encodeURIComponent(filterFormula)}`,
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${CONFIG.AIRTABLE_API_KEY}`
+            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`
           }
         }
       );
