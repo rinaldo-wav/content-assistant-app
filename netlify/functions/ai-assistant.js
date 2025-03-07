@@ -289,7 +289,7 @@ exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': 'https://portal.wearevery.com',
     'Access-Control-Allow-Headers': 'Content-Type, Origin, X-Requested-With',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Credentials': 'true'
   };
   
