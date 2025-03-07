@@ -315,11 +315,14 @@ exports.handler = async function(event, context) {
     try {
       // Fetch assistant and model configurations from Airtable
       const assistantConfig = await getAssistantConfig(assistantType, recordId);
-      const modelConfig = await getModelConfig(assistantConfig.ModelID && assistantConfig.ModelID[0]);
-      
-      if (!modelConfig) {
-        throw new Error('Model configuration not found');
-      }
+// Add fallback for when ModelID doesn't exist
+let modelConfig;
+if (assistantConfig.ModelID && assistantConfig.ModelID.length > 0) {
+  modelConfig = await getModelConfig(assistantConfig.ModelID[0]);
+} else {
+  console.log('No model ID provided for assistant, using default model');
+  modelConfig = await getModelConfig(null); // This will use the default model
+}
       
       // Get content record for context
       const contentRecord = await getContentRecord(recordId);
