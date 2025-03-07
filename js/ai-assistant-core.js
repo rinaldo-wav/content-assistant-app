@@ -1004,6 +1004,17 @@ async function handleRegularMessage(message) {
                             message.includes('longer') ||
                             (currentlySelectedText && currentlySelectedText.length > 3000);
       
+// Make sure we have required parameters
+if (!assistant) {
+  console.error('No assistant specified for API call');
+  return handleApiError(new Error('No assistant specified'));
+}
+
+if (!recordId) {
+  console.error('No recordId specified for API call');
+  return handleApiError(new Error('No record ID specified'));
+}
+
       // Prepare payload with mode and history
       const payload = {
         prompt: message,
@@ -1066,26 +1077,23 @@ This helps me provide more focused and reliable assistance.`,
         }
       }
       
-      // Call serverless function with retry mechanism
-      const response = await retryOperation(async () => {
-        const fetchResponse = await fetch(CONFIG.API_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-        
-        // Check if the response is ok
-        if (!fetchResponse.ok) {
-          const errorData = await fetchResponse.json().catch(() => ({ error: fetchResponse.statusText }));
-          throw new Error(`API responded with status: ${fetchResponse.status}. ${errorData.error || ''}`);
-        }
-        
-        return fetchResponse;
-      }, CONFIG.MAX_RETRY_ATTEMPTS, CONFIG.RETRY_DELAY);
-      
-      const data = await response.json();
+      // Make the API call with retry logic
+    const response = await fetch(CONFIG.API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': window.location.origin
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API error response:', response.status, errorText);
+      throw new Error(`API responded with status: ${response.status}. ${errorText}`);
+    }
+    
+    const data = await response.json();
       
       // After receiving response, reset selected text
       currentlySelectedText = null;

@@ -287,14 +287,18 @@ function preparePromptForContentMode(basePrompt, selectedText, requestType) {
 exports.handler = async function(event, context) {
   // CORS headers
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Origin': 'https://portal.wearevery.com',
+    'Access-Control-Allow-Headers': 'Content-Type, Origin, X-Requested-With',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
   
   // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return { 
+      statusCode: 200, 
+      headers, 
+      body: JSON.stringify({ message: 'CORS preflight successful' })
+    };
   }
   
   try {
