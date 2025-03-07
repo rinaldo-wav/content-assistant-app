@@ -290,6 +290,7 @@ exports.handler = async function(event, context) {
     'Access-Control-Allow-Origin': 'https://portal.wearevery.com',
     'Access-Control-Allow-Headers': 'Content-Type, Origin, X-Requested-With',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Credentials': 'true'
   };
   
   // Handle preflight OPTIONS request

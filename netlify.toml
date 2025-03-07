@@ -10,3 +10,4 @@
     Access-Control-Allow-Origin = "https://portal.wearevery.com"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept"
+    Access-Control-Allow-Credentials = "true"

@@ -3,9 +3,10 @@ const axios = require('axios');
 exports.handler = async function(event, context) {
   // CORS headers
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://portal.wearevery.com',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Credentials': 'true'
   };
   
   // Handle preflight OPTIONS request
