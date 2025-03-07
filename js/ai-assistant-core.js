@@ -744,9 +744,11 @@ window.addEventListener('load', function() {
    * Get record ID from URL
    */
   function getRecordIdFromUrl() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('recordId');
-  }
+  const urlParams = new URLSearchParams(window.location.search);
+  const recordId = urlParams.get('recordId');
+  console.log('Got record ID from URL:', recordId);
+  return recordId;
+}
   
   /**
    * Load available assistants for the current content
