@@ -285,11 +285,14 @@ function preparePromptForContentMode(basePrompt, selectedText, requestType) {
 }
 
 exports.handler = async function(event, context) {
-  // CORS headers
+  // Get the origin from the request
+  const origin = event.headers.origin || event.headers.Origin || 'https://portal.wearevery.com';
+  
+  // CORS headers - more permissive
   const headers = {
-    'Access-Control-Allow-Origin': 'https://portal.wearevery.com',
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'Content-Type, Origin, X-Requested-With',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
     'Access-Control-Allow-Credentials': 'true'
   };
   
@@ -301,6 +304,13 @@ exports.handler = async function(event, context) {
       body: ''
     };
   }
+  
+  // Console log for debugging
+  console.log('AI Assistant request received:', {
+    method: event.httpMethod,
+    origin: origin,
+    path: event.path
+  });
   
   try {
     // Parse request body with more error handling

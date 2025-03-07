@@ -44,26 +44,34 @@
   };
 
   // Add the test function here
-async function testNetlifyConnection() {
-  try {
-    console.log('Testing connection to Netlify functions...');
-    const response = await fetch('https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      // Note: Removed credentials here for initial test
-      body: JSON.stringify({ operation: 'test' })
-    });
-    
-    const responseText = await response.text();
-    console.log('Test response:', responseText);
-    return response.ok;
-  } catch (error) {
-    console.error('Test connection failed:', error);
-    return false;
+  async function testNetlifyConnection() {
+    try {
+      console.log('Testing connection to Netlify functions...');
+      const response = await fetch('https://lively-bombolone-92a577.netlify.app/.netlify/functions/airtable-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        // Remove credentials for this test
+        body: JSON.stringify({ operation: 'test' })
+      });
+      
+      const responseText = await response.text();
+      console.log('Test response:', responseText);
+      
+      // Add a second test to the AI function
+      console.log('Testing connection to AI assistant function...');
+      const aiResponse = await fetch('https://lively-bombolone-92a577.netlify.app/.netlify/functions/ai-assistant', {
+        method: 'OPTIONS'
+      });
+      console.log('AI OPTIONS test status:', aiResponse.status);
+      
+      return response.ok;
+    } catch (error) {
+      console.error('Test connection failed:', error);
+      return false;
+    }
   }
-}
   
   // Global state
   let currentAssistant = null;
@@ -1118,15 +1126,12 @@ async function sendToAI(message, assistant) {
         'Content-Type': 'application/json',
         'Origin': window.location.origin
       },
-      // Try one of these options:
-      credentials: 'same-origin', // Try this first
-      // OR
-      // credentials: 'omit', // If same-origin doesn't work
+      // Try with 'omit' instead of any other option
+      credentials: 'omit',
       body: JSON.stringify(payload)
     };
-
-    console.log('Sending Payload:', JSON.stringify(payload, null, 2));
-
+    
+    console.log('Sending to AI with options:', fetchOptions);
     const response = await fetch(CONFIG.API_ENDPOINT, fetchOptions);
 
     // Detailed error handling for non-OK responses
