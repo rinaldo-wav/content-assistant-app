@@ -329,9 +329,52 @@ class LlamaModelProvider extends BaseModelProvider {
   }
 }
 
-// Helper function to prepare prompt (unchanged)
+// Helper function to prepare prompt for content mode
 function preparePromptForContentMode(basePrompt, selectedText, requestType) {
-  /* Existing implementation */
+  // Make sure we never return an empty prompt
+  if (!basePrompt) {
+    basePrompt = "Please improve the selected text with specific suggestions.";
+  }
+  
+  // Add special instructions for response formatting
+  const specialInstructions = `
+IMPORTANT RESPONSE FORMAT:
+Please structure your response like this:
+
+[COMMENT]
+Brief explanation of your changes or suggestions
+[/COMMENT]
+
+For multiple options:
+[OPTIONS]
+Option 1:
+Your first suggestion
+
+Option 2:
+Your second suggestion
+[/OPTIONS]
+
+For complete rewrites:
+[REWRITE]
+Your complete new version of the text
+[/REWRITE]
+
+Ensure all HTML tags are properly formatted and closed.
+`;
+
+  // Add specific instructions based on request type
+  let additionalInstructions = "";
+  if (requestType && /headline|title/i.test(requestType)) {
+    additionalInstructions = `
+Focus on creating a compelling headline. Present your suggestion in proper HTML format.`;
+  } 
+  
+  // Always return the full prompt
+  return `${basePrompt}
+  
+${specialInstructions}
+
+${additionalInstructions}`;
 }
 
 exports.handler = async function(event, context) {
