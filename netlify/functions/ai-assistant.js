@@ -345,6 +345,14 @@ Please structure your response like this:
 Brief explanation of your changes or suggestions
 [/COMMENT]
 
+[OPERATION]
+{
+  "type": "replace",
+  "position": "end",
+  "content": "The new content to add or replace with"
+}
+[/OPERATION]
+
 For multiple options:
 [OPTIONS]
 Option 1:
@@ -360,6 +368,11 @@ Your complete new version of the text
 [/REWRITE]
 
 Ensure all HTML tags are properly formatted and closed.
+
+For operations, please use these guidelines:
+- "type" should be: "replace" (for changing text), "insert" (for adding new content), or "append" (for adding at end)
+- "position" can be: "after_headline", "after_first_paragraph", "end", or a specific location described in words
+- "content" should contain the actual HTML content to insert or replace with
 `;
 
   // Add specific instructions based on request type
@@ -469,28 +482,35 @@ if (assistantConfig.ModelID && assistantConfig.ModelID.length > 0) {
       }
       
       // Determine if we're using a quick action
-      let userPrompt;
+let userPrompt;
       
-      if (quickAction && assistantConfig.QuickActions) {
-        // Find the matching quick action
-        const actionConfig = JSON.parse(assistantConfig.QuickActions || '{}')[quickAction];
-        
-        if (actionConfig && actionConfig.prompt) {
-          // Use the predefined prompt from the quick action
-          userPrompt = actionConfig.prompt;
-          
-          // If the quick action has a special system prompt override, use it
-          if (actionConfig.systemPrompt) {
-            assistantConfig.SystemPrompt = actionConfig.systemPrompt;
-          }
-        } else {
-          // Fall back to regular prompt if quick action not found
-          userPrompt = prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode);
-        }
-      } else {
-        // Standard prompt generation
-        userPrompt = prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode);
+if (quickAction && assistantConfig.QuickActions) {
+  // Find the matching quick action
+  try {
+    const quickActionConfig = JSON.parse(assistantConfig.QuickActions || '{}')[quickAction];
+    
+    if (quickActionConfig && quickActionConfig.prompt) {
+      // Use the predefined prompt from the quick action
+      userPrompt = quickActionConfig.prompt;
+      
+      // If the quick action has a special system prompt override, use it
+      if (quickActionConfig.systemPrompt) {
+        assistantConfig.SystemPrompt = quickActionConfig.systemPrompt;
       }
+      
+      console.log(`Using quick action "${quickAction}" with prompt: ${userPrompt.substring(0, 50)}...`);
+    } else {
+      console.log(`Quick action "${quickAction}" not found or invalid, using standard prompt`);
+      userPrompt = prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode);
+    }
+  } catch (error) {
+    console.error('Error processing quick action:', error);
+    userPrompt = prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode);
+  }
+} else {
+  // Standard prompt generation
+  userPrompt = prepareUserPrompt(prompt, assistantConfig, selectedText, strippedContent, documentStructure, historyText, interactionMode);
+}
       
       // Create the appropriate model provider
       const modelProvider = ModelProviderFactory.createProvider(modelConfig, {
