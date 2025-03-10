@@ -14,7 +14,7 @@ window.InlineChangeVisualizer = class {
     this.applyCallback = null;
     this.rejectCallback = null;
     this.messageElement = null; // Reference to AI message element
-  },
+  }
 
   /**
    * Show suggested changes directly in the editor with cleaner styling
@@ -62,7 +62,7 @@ window.InlineChangeVisualizer = class {
     // Store callbacks
     this.applyCallback = options.onApply;
     this.rejectCallback = options.onReject;
-  },
+  }
   
   /**
    * Show just inserted content without deletion visualization
@@ -86,7 +86,7 @@ window.InlineChangeVisualizer = class {
     // Store callbacks
     this.applyCallback = options.onApply;
     this.rejectCallback = options.onReject;
-  },
+  }
   
   /**
    * Show controls for accepting/rejecting changes in the AI Assistant message
@@ -135,7 +135,7 @@ window.InlineChangeVisualizer = class {
     
     // Store reference to controls
     this.changeControls = controlsContainer;
-  },
+  }
   
   /**
    * Legacy method to show controls at the bottom (fallback)
@@ -194,7 +194,7 @@ window.InlineChangeVisualizer = class {
     
     // Store reference to controls
     this.changeControls = controlsContainer;
-  },
+  }
   
   /**
    * Apply suggested changes
@@ -239,7 +239,7 @@ window.InlineChangeVisualizer = class {
       const event = new Event('text-change', { bubbles: true });
       this.quill.root.dispatchEvent(event);
     }, 100);
-  },
+  }
 
   /**
    * Reject changes and restore original content
@@ -295,7 +295,7 @@ window.InlineChangeVisualizer = class {
     if (typeof this.rejectCallback === 'function') {
       this.rejectCallback();
     }
-  },
+  }
   
   /**
    * Remove change controls
