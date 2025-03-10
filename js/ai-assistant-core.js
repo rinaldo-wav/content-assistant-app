@@ -18,7 +18,7 @@
     window.visualizerLoading = true;
     
     const script = document.createElement('script');
-    script.src = 'https://lively-bombolone-92a577.netlify.app/js/inline-change-visualizer.js';
+    script.src = '/js/inline-change-visualizer.js';
     script.async = false; // Make this synchronous for more predictable loading
     
     script.onload = function() {
