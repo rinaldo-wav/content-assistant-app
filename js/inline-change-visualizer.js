@@ -66,6 +66,7 @@ showInsertedContent(options) {
   this.applyCallback = options.onApply;
   this.rejectCallback = options.onReject;
 }
+>>>>>>> 1748c2c36442395b9760550dd87bb425b10baa51
     
     // Temporarily insert suggested content with cleaner styling (no brackets)
     this.quill.deleteText(this.originalRange.index, this.originalRange.length);
