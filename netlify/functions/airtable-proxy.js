@@ -29,6 +29,13 @@ exports.handler = async function(event, context) {
     
     // Different operations we support
     switch (operation) {
+  case 'test':
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ message: 'Connection test successful' })
+    };
+        
       case 'getAssistants':
         return await getAssistants(recordId, headers);
       
