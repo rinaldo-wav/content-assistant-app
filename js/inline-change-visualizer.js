@@ -14,7 +14,7 @@ window.InlineChangeVisualizer = class {
     this.applyCallback = null;
     this.rejectCallback = null;
     this.messageElement = null; // Reference to AI message element
-  }
+  },
 
   /**
    * Show suggested changes directly in the editor with cleaner styling
@@ -36,30 +36,6 @@ window.InlineChangeVisualizer = class {
       console.error("No range provided for change visualization");
       return;
     }
-  
-/**
- * Show just inserted content without deletion visualization
- * @param {Object} options Configuration options
- */
-showInsertedContent(options) {
-  // Store the insertion point
-  this.originalRange = { index: options.index, length: 0 };
-  this.messageElement = options.messageElement;
-  
-  // For pure insertion, just add the new text in blue
-  this.quill.insertText(
-    options.index, 
-    "\n\n" + options.suggestedText, 
-    { color: '#109FCC' } // Blue color for new content
-  );
-  
-  // Create and display controls in the AI Assistant message
-  this.showChangeControlsInAssistant(options);
-  
-  // Store callbacks
-  this.applyCallback = options.onApply;
-  this.rejectCallback = options.onReject;
-}
     
     // Temporarily insert suggested content with cleaner styling (no brackets)
     this.quill.deleteText(this.originalRange.index, this.originalRange.length);
@@ -86,7 +62,31 @@ showInsertedContent(options) {
     // Store callbacks
     this.applyCallback = options.onApply;
     this.rejectCallback = options.onReject;
-  }
+  },
+  
+  /**
+   * Show just inserted content without deletion visualization
+   * @param {Object} options Configuration options
+   */
+  showInsertedContent(options) {
+    // Store the insertion point
+    this.originalRange = { index: options.index, length: 0 };
+    this.messageElement = options.messageElement;
+    
+    // For pure insertion, just add the new text in blue
+    this.quill.insertText(
+      options.index, 
+      "\n\n" + options.suggestedText, 
+      { color: '#109FCC' } // Blue color for new content
+    );
+    
+    // Create and display controls in the AI Assistant message
+    this.showChangeControlsInAssistant(options);
+    
+    // Store callbacks
+    this.applyCallback = options.onApply;
+    this.rejectCallback = options.onReject;
+  },
   
   /**
    * Show controls for accepting/rejecting changes in the AI Assistant message
@@ -112,6 +112,7 @@ showInsertedContent(options) {
     const acceptButton = document.createElement('button');
     acceptButton.className = 'action-button';
     acceptButton.style.backgroundColor = '#36AD34';  // Green
+    acceptButton.style.color = 'white';
     acceptButton.textContent = 'Accept Change';
     
     // Create reject button
@@ -134,7 +135,7 @@ showInsertedContent(options) {
     
     // Store reference to controls
     this.changeControls = controlsContainer;
-  }
+  },
   
   /**
    * Legacy method to show controls at the bottom (fallback)
@@ -193,111 +194,109 @@ showInsertedContent(options) {
     
     // Store reference to controls
     this.changeControls = controlsContainer;
-  }
+  },
   
   /**
- * Apply suggested changes
- */
-applyChanges(suggestedText) {
-  if (!this.originalRange) return;
-  
-  // Check if this is an append/insert operation (length = 0)
-  const isInsertOperation = this.originalRange.length === 0;
-  
-  if (isInsertOperation) {
-    // For insert operations, we don't need to delete anything
-    // Just remove the blue styling
-    const insertionLength = (suggestedText.length + 2); // +2 for the newlines
-    this.quill.formatText(this.originalRange.index, insertionLength, { color: null });
+   * Apply suggested changes
+   */
+  applyChanges(suggestedText) {
+    if (!this.originalRange) return;
     
-    console.log('Applied insertion without deletion');
-  } else {
-    // For replace operations, delete the visualization and insert the suggested text
-    // Calculate the total visualization length (original + space + suggested)
-    const visualizationLength = this.originalContent.length + 1 + suggestedText.length;
+    // Check if this is an append/insert operation (length = 0)
+    const isInsertOperation = this.originalRange.length === 0;
     
-    // Delete the visualization
-    this.quill.deleteText(this.originalRange.index, visualizationLength);
+    if (isInsertOperation) {
+      // For insert operations, we don't need to delete anything
+      // Just remove the blue styling
+      const insertionLength = (suggestedText.length + 2); // +2 for the newlines
+      this.quill.formatText(this.originalRange.index, insertionLength, { color: null });
+      
+      console.log('Applied insertion without deletion');
+    } else {
+      // For replace operations, delete the visualization and insert the suggested text
+      // Calculate the total visualization length (original + space + suggested)
+      const visualizationLength = this.originalContent.length + 1 + suggestedText.length;
+      
+      // Delete the visualization
+      this.quill.deleteText(this.originalRange.index, visualizationLength);
+      
+      // Insert just the suggested text
+      this.quill.insertText(this.originalRange.index, suggestedText);
+      
+      console.log('Applied replacement of content');
+    }
     
-    // Insert just the suggested text
-    this.quill.insertText(this.originalRange.index, suggestedText);
+    // Remove controls
+    this.removeChangeControls();
     
-    console.log('Applied replacement of content');
-  }
-  
-  // Remove controls
-  this.removeChangeControls();
-  
-  // Call the callback if provided
-  if (typeof this.applyCallback === 'function') {
-    this.applyCallback(suggestedText);
-  }
-  
-  // Trigger save
-  setTimeout(() => {
-    const event = new Event('text-change', { bubbles: true });
-    this.quill.root.dispatchEvent(event);
-  }, 100);
-}
+    // Call the callback if provided
+    if (typeof this.applyCallback === 'function') {
+      this.applyCallback(suggestedText);
+    }
+    
+    // Trigger save
+    setTimeout(() => {
+      const event = new Event('text-change', { bubbles: true });
+      this.quill.root.dispatchEvent(event);
+    }, 100);
+  },
 
   /**
- * Reject changes and restore original content
- */
-rejectChanges() {
-  if (!this.originalRange) return;
-  
-  // Check if this is an insert operation (length = 0)
-  const isInsertOperation = this.originalRange.length === 0;
-  
-  if (isInsertOperation) {
-    // For insertions, just remove the inserted content
-    // Find the blue text block
-    const startIndex = this.originalRange.index;
-    let endIndex = startIndex;
+   * Reject changes and restore original content
+   */
+  rejectChanges() {
+    if (!this.originalRange) return;
     
-    // Find where the blue text ends
-    const text = this.quill.getText(startIndex);
-    for (let i = 0; i < text.length; i++) {
-      const format = this.quill.getFormat(startIndex + i);
-      if (!format.color || format.color !== '#109FCC') {
-        if (i > 0) break;
+    // Check if this is an insert operation (length = 0)
+    const isInsertOperation = this.originalRange.length === 0;
+    
+    if (isInsertOperation) {
+      // For insertions, just remove the inserted content
+      // Find the blue text block
+      const startIndex = this.originalRange.index;
+      let endIndex = startIndex;
+      
+      // Find where the blue text ends
+      const text = this.quill.getText(startIndex);
+      for (let i = 0; i < text.length; i++) {
+        const format = this.quill.getFormat(startIndex + i);
+        if (!format.color || format.color !== '#109FCC') {
+          if (i > 0) break;
+        }
+        endIndex++;
       }
-      endIndex++;
+      
+      // Delete the inserted content (plus newlines)
+      this.quill.deleteText(startIndex, endIndex - startIndex + 2);
+    } else {
+      // For replacements, we need the original content
+      if (!this.originalContent) {
+        console.error("Cannot reject changes - original content not available");
+        return;
+      }
+      
+      // Calculate a safe maximum length
+      const maxLength = Math.max(
+        500, // Some reasonable maximum
+        this.originalContent.length * 3 // 3x the original text length
+      );
+      
+      // Delete everything from the beginning of the range
+      this.quill.deleteText(this.originalRange.index, maxLength);
+      
+      // Restore the original text
+      this.quill.insertText(this.originalRange.index, this.originalContent);
     }
     
-    // Delete the inserted content (plus newlines)
-    this.quill.deleteText(startIndex, endIndex - startIndex + 2);
-    console.log('Rejected insertion - deleted text');
-  } else {
-    // For replacements, we need the original content
-    if (!this.originalContent) {
-      console.error("Cannot reject changes - original content not available");
-      return;
+    // Remove controls
+    this.removeChangeControls();
+    
+    // Call callback if provided
+    if (typeof this.rejectCallback === 'function') {
+      this.rejectCallback();
     }
-    
-    // Calculate a safe maximum length
-    const maxLength = Math.max(
-      500, // Some reasonable maximum
-      this.originalContent.length * 3 // 3x the original text length
-    );
-    
-    // Delete everything from the beginning of the range
-    this.quill.deleteText(this.originalRange.index, maxLength);
-    
-    // Restore the original text
-    this.quill.insertText(this.originalRange.index, this.originalContent);
-    console.log('Rejected replacement - restored original');
-  }
+  },
   
-  // Remove controls
-  this.removeChangeControls();
-  
-  // Call callback if provided
-  if (typeof this.rejectCallback === 'function') {
-    this.rejectCallback();
-  }
-}
- 
   /**
    * Remove change controls
    */
