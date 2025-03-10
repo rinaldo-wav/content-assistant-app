@@ -1305,7 +1305,8 @@ async function sendToAI(message, assistant) {
       /improve|edit|rewrite|revise|update|change|fix|correct|optimize|enhance/i,
       /help me with this|make this better|suggestions for|how would you|what if|offer ideas|consider options|make.*more powerful/i,
       /seo|grammar|spelling|tone|style|clarity|flow|readability|headline|paragraph|content/i,
-      /suggest|propose|provide options|alternatives|versions|variations/i
+      /suggest|propose|provide options|alternatives|versions|variations/i,
+      /write|create|draft|generate|compose|produce|develop|make a|blog post|article/i
     ];
     
     return contentRequestPatterns.some(pattern => pattern.test(message));
