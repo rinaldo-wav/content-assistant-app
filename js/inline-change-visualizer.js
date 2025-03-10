@@ -36,23 +36,17 @@ window.InlineChangeVisualizer = class {
       console.error("No range provided for change visualization");
       return;
     }
-
-    /**
+  
+/**
  * Show just inserted content without deletion visualization
  * @param {Object} options Configuration options
- * @param {string} options.suggestedText Text to insert
- * @param {number} options.index Index to insert at
- * @param {Function} options.onApply Callback when applied
- * @param {Function} options.onReject Callback when rejected
- * @param {HTMLElement} options.messageElement The AI message element to add controls to
  */
 showInsertedContent(options) {
   // Store the insertion point
   this.originalRange = { index: options.index, length: 0 };
   this.messageElement = options.messageElement;
   
-  // For pure insertion, we just add the new text in blue
-  // Insert double newline before the new content for better separation
+  // For pure insertion, just add the new text in blue
   this.quill.insertText(
     options.index, 
     "\n\n" + options.suggestedText, 
@@ -66,7 +60,6 @@ showInsertedContent(options) {
   this.applyCallback = options.onApply;
   this.rejectCallback = options.onReject;
 }
->>>>>>> 1748c2c36442395b9760550dd87bb425b10baa51
     
     // Temporarily insert suggested content with cleaner styling (no brackets)
     this.quill.deleteText(this.originalRange.index, this.originalRange.length);
@@ -304,7 +297,7 @@ rejectChanges() {
     this.rejectCallback();
   }
 }
-  
+ 
   /**
    * Remove change controls
    */
